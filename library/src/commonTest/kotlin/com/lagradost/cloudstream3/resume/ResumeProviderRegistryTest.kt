@@ -14,6 +14,7 @@ class ResumeProviderRegistryTest {
     private val entry = RemoteResumeEntry("item", "account", "Title", "detail", ResumeEpisode("s", "sub-e", "12", 1, "sub"), ResumeProgress(59_123, 120_000), "opaque")
     private fun source(
         version: Int = 1,
+        accountId: String? = "account",
         capabilities: Set<ResumeCapability> = all,
         list: suspend (ResumeListRequest) -> ResumeListPage = { ResumeListPage(listOf(entry)) },
         resolve: suspend (ResumeResolveRequest) -> ResolvedResume? = {
@@ -22,6 +23,7 @@ class ResumeProviderRegistryTest {
     ) = object : ContinueWatchingSource {
         override val apiVersion = version
         override val capabilities = capabilities
+        override suspend fun getAccountId(profileId: String) = accountId
         override suspend fun getContinueWatching(request: ResumeListRequest) = list(request)
         override suspend fun resolveResume(request: ResumeResolveRequest) = resolve(request)
         override suspend fun reportProgress(event: ResumePlaybackEvent) = ResumeProgressReceipt.ACCEPTED
@@ -31,6 +33,15 @@ class ResumeProviderRegistryTest {
         assertFailsWith<IllegalArgumentException> { ResumeProviderRegistry(NativeResumeBridge.getCapabilities()).register(owner, source()) }
         assertFailsWith<IllegalArgumentException> { ResumeProviderRegistry(host).register(owner, source(version = 2)) }
         assertFailsWith<IllegalArgumentException> { ResumeProviderRegistry(host).register(owner, source(capabilities = emptySet())) }
+    }
+
+    @Test fun accountDiscoveryDistinguishesSignedOutFromAnAccountAndRejectsBlankIds() = runTest {
+        for (account in listOf("account", null, "")) {
+            val registry = ResumeProviderRegistry(host)
+            registry.register(owner, source(accountId = account))
+            val expected = if (account == "") ResumeCallResult.Failure(ResumeFailure.INVALID_RESPONSE) else ResumeCallResult.Success(account)
+            assertEquals(expected, registry.getAccountId(owner, "profile"))
+        }
     }
 
     @Test fun listPreservesRemoteOrderAndExplicitAccountScope() = runTest {

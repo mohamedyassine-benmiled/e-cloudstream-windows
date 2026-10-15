@@ -553,6 +553,7 @@ class HomeViewModel : ViewModel() {
     }
 
     fun reloadStored() {
+        com.lagradost.desktop.resume.NativeContinueWatching.refresh()
         loadResumeWatching()
         loadStoredData()
     }

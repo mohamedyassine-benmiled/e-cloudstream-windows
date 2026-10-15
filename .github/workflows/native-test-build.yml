@@ -1,9 +1,8 @@
 name: Native test build
 
 # Test build for the experimental native-resume fork: runs the resume unit
-# tests and produces the portable app folder + portable ZIP (no installer,
-# no secrets). The existing release.yml (MSI + Inno Setup) is untouched and
-# can be dispatched manually when a full installer is needed.
+# tests and produces a portable ZIP, MSI and Inno Setup installer. These are
+# unsigned test artifacts, not a published release. No secrets are needed.
 
 on:
   push:
@@ -41,15 +40,63 @@ jobs:
       - name: Build portable ZIP
         run: ./gradlew :app:portableZip --no-daemon
 
+      - name: Locate WiX Toolset 3
+        shell: pwsh
+        run: |
+          $wix = Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin\candle.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $wix) {
+            choco install wixtoolset --version=3.14.1 --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "WiX installation failed" }
+            $wix = Get-ChildItem "${env:ProgramFiles(x86)}\WiX Toolset v3*\bin\candle.exe" | Select-Object -First 1
+          }
+          if (-not $wix) { throw "WiX Toolset 3 was not found" }
+          $wix.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build MSI installer
+        run: ./gradlew :app:installerMsi --no-daemon
+
+      - name: Build setup executable
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+          }
+          $ver = (Select-String -Path "app/build.gradle.kts" -Pattern 'val desktopVersion = "([^"]+)"').Matches.Groups[1].Value
+          if (-not $ver) { throw "Desktop version not found" }
+          & $iscc "/DAppVersion=$ver" "tools\installer\cloudstream.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+
+      - name: Write artifact checksums
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem dist/release/* -File | Where-Object { $_.Extension -in '.zip', '.msi', '.exe' }
+          if ($files.Count -ne 3) { throw "Expected portable ZIP, MSI and setup EXE" }
+          $files | ForEach-Object { "$( (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant() )  $($_.Name)" } | Set-Content dist/release/SHA256SUMS.txt
+
       - name: Upload portable ZIP
         uses: actions/upload-artifact@v4
         with:
           name: CloudStream-Windows-NativeTest-Portable
           path: dist/release/*-portable.zip
+          if-no-files-found: error
+
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: CloudStream-Windows-NativeTest-Installers
+          path: |
+            dist/release/*.msi
+            dist/release/*-setup.exe
+            dist/release/SHA256SUMS.txt
+          if-no-files-found: error
 
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: native-test-reports
-          path: app/build/reports/tests/
+          path: |
+            app/build/reports/tests/
+            library/build/reports/tests/

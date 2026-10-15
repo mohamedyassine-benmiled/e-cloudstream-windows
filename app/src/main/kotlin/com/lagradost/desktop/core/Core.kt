@@ -85,6 +85,7 @@ sealed interface Route {
         val poster: String? = null,
         val startAction: Int = 0,
         val startValue: Int? = null,
+        val nativeResume: com.lagradost.desktop.resume.RemoteResumeRequest? = null,
     ) : Route
 
     /** A full list ("See all") */
@@ -101,6 +102,7 @@ sealed interface Route {
         val generator: com.lagradost.cloudstream3.ui.player.VideoGenerator<*>,
         val index: Int,
         val syncData: HashMap<String, String>? = null,
+        val nativeResume: com.lagradost.desktop.resume.RemoteResumeLaunch? = null,
     ) : Route
 }
 
@@ -199,6 +201,9 @@ object Navigator {
     fun openDetails(card: SearchResponse, startAction: Int = 0, startValue: Int? = null) =
         go(Route.Details(card.url, card.apiName, card.name, card.posterUrl, startAction, startValue))
 
+    fun resumeRemote(card: com.lagradost.desktop.resume.RemoteResumeCard) =
+        go(Route.Details(card.url, card.apiName, card.name, card.posterUrl, nativeResume = card.request))
+
     fun search(query: String?, only: String? = null) = go(Route.Search(query, only = only))
 }
 
@@ -219,6 +224,13 @@ object NativeUi {
     fun openPlayer(generator: com.lagradost.cloudstream3.ui.player.VideoGenerator<*>, index: Int, syncData: HashMap<String, String>?): Boolean {
         if (!active) return false
         Navigator.go(Route.Player(generator, index, syncData))
+        return true
+    }
+
+    fun openRemotePlayer(generator: com.lagradost.cloudstream3.ui.player.VideoGenerator<*>, index: Int,
+        syncData: HashMap<String, String>?, resume: com.lagradost.desktop.resume.RemoteResumeLaunch): Boolean {
+        if (!active || !com.lagradost.desktop.resume.NativeContinueWatching.isCurrent(resume.request)) return false
+        Navigator.go(Route.Player(generator, index, syncData, resume))
         return true
     }
 

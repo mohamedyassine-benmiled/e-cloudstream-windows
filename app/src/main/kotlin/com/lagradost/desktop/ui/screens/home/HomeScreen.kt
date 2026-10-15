@@ -33,6 +33,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import com.lagradost.desktop.resume.NativeContinueWatching
+import com.lagradost.desktop.resume.RemoteResumeCard
+import com.lagradost.desktop.resume.resumeCardState
+import com.lagradost.cloudstream3.resume.NativeResumeBridge
+import com.lagradost.cloudstream3.resume.ResumeCapability
+import com.lagradost.cloudstream3.resume.ResumeListState
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateFloat
@@ -108,6 +115,11 @@ private val gutter: Dp
 fun openCard(card: SearchResponse) {
     // a title from TMDB or the Explore lists belongs to no extension: the extensions are searched for it
     if (card is com.lagradost.desktop.tmdb.TmdbCard) { Navigator.search(card.name); return }
+    if (card is RemoteResumeCard) {
+        if (NativeResumeBridge.supports(card.request.owner, ResumeCapability.RESOLVE_RESUME)) Navigator.resumeRemote(card)
+        else Navigator.openDetails(card)
+        return
+    }
     if (card is DataStoreHelper.ResumeWatchingResult && !card.isFromDownload && card.id != null) {
         Navigator.openDetails(card, START_ACTION_LOAD_EP, card.id)
     } else Navigator.openDetails(card)
@@ -134,6 +146,7 @@ fun HomeScreen() {
     val page by vm.page.observeAsState()
     val preview by vm.preview.observeAsState()
     val resume by vm.resumeWatching.observeAsState()
+    val nativeResume by NativeContinueWatching.shelves.collectAsState()
     val bookmarks by vm.bookmarks.observeAsState()
     val statusTypes by vm.availableWatchStatusTypes.observeAsState()
     val apiName by vm.apiName.observeAsState()
@@ -204,6 +217,37 @@ fun HomeScreen() {
                 }
             }
             val bm = bookmarks
+            if (com.lagradost.desktop.ui.fluent.Appearance.homeContinue) {
+                nativeResume.forEach { shelf ->
+                    if (shelf.cards.isNotEmpty() || shelf.error != null || shelf.state != ResumeListState.READY || shelf.nextCursor != null) {
+                        item(key = "native-resume-${shelf.owner}") {
+                            Column(Modifier.padding(bottom = space)) {
+                                com.lagradost.desktop.ui.fluent.RichSectionHeader("Continue watching — ${shelf.owner.providerId}",
+                                    Modifier.padding(horizontal = gutter),
+                                    onSeeAll = { Navigator.go(Route.Section("Continue watching — ${shelf.owner.providerId}", shelf.cards)) })
+                                Box(Modifier.height(12.dp))
+                                if (shelf.cards.isNotEmpty()) Shelf(shelf.cards, cardWidth, gutter = gutter, spacing = 14.dp,
+                                    key = { "${it.request.context.accountId}/${it.request.item.itemId}" }) { card ->
+                                    PosterCard(card, { openCard(card) }, cardWidth, subtitle = resumeSubtitle(card), menu = {
+                                        listOf(MenuItem("Resume", Icons.Play) { openCard(card) },
+                                            MenuItem("Open title page", Icons.Info) { Navigator.openDetails(card) },
+                                            MenuItem("Hide from this device", Icons.Delete, destructive = true) { NativeContinueWatching.hide(card) })
+                                    })
+                                }
+                                if (shelf.error != null || shelf.state != ResumeListState.READY) {
+                                    FText(if (shelf.error != null) "Could not refresh this account list. Retry or check the extension's login settings."
+                                        else "Sign in using this extension's settings to load Continue Watching.",
+                                        modifier = Modifier.padding(horizontal = gutter), color = Fluent.colors.textSecondary)
+                                    Button("Retry", { NativeContinueWatching.refresh() }, icon = Icons.Refresh,
+                                        modifier = Modifier.padding(horizontal = gutter))
+                                }
+                                if (shelf.nextCursor != null) Button("Load more", { NativeContinueWatching.loadMore(shelf.owner) },
+                                    modifier = Modifier.padding(horizontal = gutter))
+                            }
+                        }
+                    }
+                }
+            }
             if (bm != null && bm.second.isNotEmpty()) {
                 item(key = "bookmarks") {
                     Column(Modifier.reveal("home/$apiName/bookmarks", 120).padding(bottom = space)) {
@@ -272,19 +316,19 @@ fun HomeScreen() {
 
 /** "S1 · E3 · 40 min left" (a film: "26 min left") */
 private fun resumeSubtitle(card: SearchResponse): String? {
-    val r = card as? DataStoreHelper.ResumeWatchingResult ?: return typeLabel(card.type)
+    val r = card.resumeCardState() ?: return typeLabel(card.type)
     val parts = ArrayList<String>()
-    val ep = r.episode
+    val ep = r.number
     val season = r.season
     // a film has episode 0 and no season
-    if (ep != null && (ep > 0 || season != null)) parts += if (season != null) "S$season · E$ep" else "E$ep"
+    if (ep != null && (ep.toDoubleOrNull()?.let { it > 0 } != false || season != null)) parts += if (season != null) "S$season · E$ep" else "E$ep"
+    r.audio?.let { parts += it }
     resumeLeft(card)?.let { parts += it }
-    return parts.joinToString(" · ").ifEmpty { typeLabel(r.type) }
+    return parts.joinToString(" · ").ifEmpty { typeLabel(card.type) }
 }
 
 private fun resumeLeft(card: SearchResponse): String? {
-    val r = card as? DataStoreHelper.ResumeWatchingResult ?: return null
-    val left = r.watchPos?.let { ((it.duration - it.position) / 60_000L).coerceAtLeast(0) } ?: return null
+    val left = card.resumeCardState()?.progress?.remainingMs?.div(60_000L) ?: return null
     if (left <= 0) return null
     return if (left >= 60) "${left / 60} h ${left % 60} min left" else "$left min left"
 }

@@ -145,6 +145,7 @@ fun PlayerScreen(entry: Entry, route: Route.Player) {
             sync = entry.vms.get<SyncViewModel>(),
             syncData = route.syncData,
             exit = { Navigator.back() },
+            nativeResume = route.nativeResume,
         )
     }
     DisposableEffect(session) {

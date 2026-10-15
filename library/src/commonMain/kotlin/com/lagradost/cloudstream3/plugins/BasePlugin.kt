@@ -13,6 +13,19 @@ const val PLUGIN_TAG = "PluginInstance"
 
 abstract class BasePlugin {
 
+    /** Optional native integration; call only after the host advertises the required capabilities. */
+    fun registerContinueWatchingSource(
+        provider: MainAPI,
+        source: com.lagradost.cloudstream3.resume.ContinueWatchingSource,
+    ): com.lagradost.cloudstream3.resume.ResumeRegistration {
+        val owner = requireNotNull(filename) { "Plugin must be loaded before registering resume support" }
+        require(provider.sourcePlugin == owner && APIHolder.allProviders.any { it === provider }) {
+            "Resume handlers must belong to this plugin's registered provider"
+        }
+        return com.lagradost.cloudstream3.resume.NativeResumeBridge.register(
+            com.lagradost.cloudstream3.resume.ResumeSourceKey(owner, provider.name), source)
+    }
+
     /**
      * Used to register providers instances of MainAPI
      * @param element MainAPI provider you want to register

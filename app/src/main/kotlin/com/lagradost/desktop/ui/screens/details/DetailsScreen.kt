@@ -117,6 +117,7 @@ import com.lagradost.desktop.ui.fluent.fluentClickable
 import com.lagradost.desktop.ui.fluent.rememberInteraction
 import com.lagradost.desktop.ui.Toasts
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
 import com.lagradost.desktop.ui.screens.home.openCard
 import com.lagradost.desktop.ui.screens.home.stripHtml
 import com.lagradost.desktop.ui.shell.TopBarOverlay
@@ -137,6 +138,20 @@ fun DetailsScreen(entry: Entry, route: Route.Details) {
         val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
         val fillers = prefs.getBoolean(ctx.getString(R.string.show_fillers_key), false)
         val dub = if (ctx.getApiDubstatusSettings().contains(DubStatus.Dubbed)) DubStatus.Dubbed else DubStatus.Subbed
+        val remote = route.nativeResume?.takeIf { !entry.autoStartDone }
+        if (remote != null) {
+            entry.autoStartDone = true
+            val result = com.lagradost.desktop.resume.NativeContinueWatching.resolve(remote)
+            val resolved = (result as? com.lagradost.cloudstream3.resume.ResumeCallResult.Success)?.value
+            val url = resolved?.detailUrl ?: route.url
+            val loading = vm.load(ctx, url, route.apiName, fillers, dub, null)
+            try { loading.join() } finally { if (!kotlinx.coroutines.currentCoroutineContext().isActive) loading.cancel() }
+            if (resolved == null || !vm.resumeRemote(remote, resolved)) {
+                Toasts.show("The saved episode could not be resumed. Refresh its account list or select an episode on the title page.", true)
+            }
+            sync.addFromUrl(url)
+            return@LaunchedEffect
+        }
         val start = if (route.startAction != 0 && !entry.autoStartDone) AutoResume(season = null, episode = null, id = route.startValue, startAction = route.startAction) else null
         entry.autoStartDone = true
         vm.load(ctx, route.url, route.apiName, fillers, dub, start)

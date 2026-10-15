@@ -765,6 +765,7 @@ object PluginManager {
         }
 
         try {
+            com.lagradost.cloudstream3.resume.NativeResumeBridge.unregisterPlugin(absolutePath)
             plugin.beforeUnload()
         } catch (e: Throwable) {
             Log.e(TAG, "Failed to run beforeUnload $absolutePath: ${Log.getStackTraceString(e)}")

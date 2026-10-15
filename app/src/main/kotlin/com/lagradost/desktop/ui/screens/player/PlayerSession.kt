@@ -101,7 +101,9 @@ class PlayerSession(
     /** AniList / MAL / Simkl ids of the title (from its page): what the watched episode is reported to */
     syncData: Map<String, String>? = null,
     private val exit: () -> Unit,
+    nativeResume: com.lagradost.desktop.resume.RemoteResumeLaunch? = null,
 ) {
+    private var pendingNativeResume = nativeResume
     private val ctx = DesktopBootstrap.activity
     private val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -451,12 +453,16 @@ class PlayerSession(
     // ------------------------------------------------------------------ playback
 
     private fun getPos(): Long {
+        val native = pendingNativeResume
+        pendingNativeResume = null
         // "Start from beginning" on the details page: this video starts at 0:00 once (its saved progress stays until it is played)
         if (StartOver.take(vm.state.generatorState?.id)) return 0L
+        if (native != null && native.localEpisodeId == vm.state.generatorState?.id &&
+            com.lagradost.desktop.resume.NativeContinueWatching.isCurrent(native.request)) {
+            return native.resolved.progress.let { com.lagradost.desktop.resume.initialResumePosition(it.seekPositionMs, it.durationMs) }
+        }
         val durPos = getViewPos(vm.state.generatorState?.id) ?: return 0L
-        if (durPos.duration == 0L) return 0L
-        if (durPos.position * 100L / durPos.duration > 95L) return 0L
-        return durPos.position
+        return com.lagradost.desktop.resume.initialResumePosition(durPos.position, durPos.duration)
     }
 
     private fun startPlayer() {
@@ -467,6 +473,7 @@ class PlayerSession(
             return
         }
         resumeMs = if (isNextEpisode) 0L else getPos()
+        pendingNativeResume = null
         positionMs = resumeMs
         loadLink(first, false)
         updateTitle()

@@ -2518,6 +2518,25 @@ class ResultViewModel2 : ViewModel() {
 
     fun hasLoaded() = currentResponse != null
 
+    /** A typed remote target enters the existing generator/player path, without rewriting history. */
+    fun resumeRemote(
+        request: com.lagradost.desktop.resume.RemoteResumeRequest,
+        resolved: com.lagradost.cloudstream3.resume.ResolvedResume,
+    ): Boolean {
+        if (!com.lagradost.desktop.resume.NativeContinueWatching.isCurrent(request)) return false
+        val matches = currentEpisodes.entries.flatMap { (group, episodes) -> episodes.map { group to it } }
+            .filter { (group, episode) -> com.lagradost.desktop.resume.matchesNativeEpisode(resolved, group.dubStatus, episode) }
+        val (group, episode) = matches.singleOrNull() ?: return false
+        val videos = currentEpisodes.filterKeys { it.dubStatus == group.dubStatus }.entries
+            .sortedBy { it.key.season }.flatMap { it.value }
+        val generator = RepoLinkGenerator(videos, page = currentResponse)
+        val index = videos.indexOfFirst { it.id == episode.id }
+        if (index < 0) return false
+        return com.lagradost.desktop.core.NativeUi.openRemotePlayer(generator, index,
+            HashMap(currentResponse?.syncData ?: emptyMap()),
+            com.lagradost.desktop.resume.RemoteResumeLaunch(request, resolved, episode.id))
+    }
+
     private fun handleAutoStart(activity: Activity?, autostart: AutoResume?) =
         viewModelScope.launchSafe {
             if (autostart == null || activity == null) return@launchSafe

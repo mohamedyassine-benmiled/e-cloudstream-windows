@@ -1,6 +1,9 @@
 package com.lagradost.cloudstream3.resume
 
 import kotlin.jvm.JvmStatic
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 
 /** Additive, optional API. Stock hosts need not contain any classes from this package. */
 const val NATIVE_RESUME_API_VERSION = 1
@@ -59,6 +62,8 @@ data class RemoteResumeEntry(
     val episodePosterUrl: String? = null,
     val lastWatchedAtEpochMs: Long? = null,
     val completed: Boolean = false,
+    /** Optional existing TvType enum name; unknown names are displayed as Others by the host. */
+    val mediaType: String? = null,
 ) {
     init {
         require(itemId.isNotBlank() && accountId.isNotBlank() && title.isNotBlank() && detailUrl.isNotBlank())
@@ -117,6 +122,8 @@ enum class ResumeProgressReceipt { ACCEPTED, RETRY_LATER, REAUTHENTICATION_REQUI
 interface ContinueWatchingSource {
     val apiVersion: Int get() = NATIVE_RESUME_API_VERSION
     val capabilities: Set<ResumeCapability>
+    /** Null means signed out. Authentication and account preferences remain extension-owned. */
+    suspend fun getAccountId(profileId: String): String? = null
     suspend fun getContinueWatching(request: ResumeListRequest): ResumeListPage
     suspend fun resolveResume(request: ResumeResolveRequest): ResolvedResume? = null
     suspend fun reportProgress(event: ResumePlaybackEvent): ResumeProgressReceipt = ResumeProgressReceipt.UNSUPPORTED
@@ -127,6 +134,36 @@ interface ContinueWatchingSource {
  * Extensions must check supports(), not merely Class.forName(), before disabling their fallback.
  */
 object NativeResumeBridge {
+    private val enabled = MutableStateFlow(emptySet<ResumeCapability>())
+    private val revision = MutableStateFlow(0L)
+    val changes = revision.asStateFlow()
+    private val registry = ResumeProviderRegistry(ResumeHostCapabilities(NATIVE_RESUME_API_VERSION,
+        setOf(ResumeCapability.READ_LIST, ResumeCapability.RESOLVE_RESUME)))
+
+    /** Host startup only. Call only where native cards and typed resume navigation are installed. */
+    fun installHostUi() {
+        enabled.value = setOf(ResumeCapability.READ_LIST, ResumeCapability.RESOLVE_RESUME)
+    }
+
     @JvmStatic
-    fun getCapabilities(): ResumeHostCapabilities = ResumeHostCapabilities(NATIVE_RESUME_API_VERSION, emptySet())
+    fun getCapabilities(): ResumeHostCapabilities = ResumeHostCapabilities(NATIVE_RESUME_API_VERSION, enabled.value)
+
+    fun register(owner: ResumeSourceKey, source: ContinueWatchingSource): ResumeRegistration {
+        require(ResumeCapability.READ_LIST in enabled.value) { "Native resume UI is not installed" }
+        val registration = registry.register(owner, source)
+        invalidate()
+        return object : ResumeRegistration {
+            override fun close() { registration.close(); invalidate() }
+            override fun invalidate() { NativeResumeBridge.invalidate() }
+        }
+    }
+
+    fun unregisterPlugin(pluginId: String) { registry.unregisterPlugin(pluginId); invalidate() }
+    fun invalidate() { revision.update { it + 1 } }
+    fun registeredSources(): Set<ResumeSourceKey> = registry.registeredSources()
+    fun supports(owner: ResumeSourceKey, capability: ResumeCapability): Boolean =
+        capability in enabled.value && registry.supports(owner, capability)
+    suspend fun getAccountId(owner: ResumeSourceKey, profileId: String) = registry.getAccountId(owner, profileId)
+    suspend fun getContinueWatching(owner: ResumeSourceKey, request: ResumeListRequest) = registry.getContinueWatching(owner, request)
+    suspend fun resolveResume(owner: ResumeSourceKey, request: ResumeResolveRequest) = registry.resolveResume(owner, request)
 }

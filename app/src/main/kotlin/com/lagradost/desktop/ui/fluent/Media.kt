@@ -1,5 +1,7 @@
 package com.lagradost.desktop.ui.fluent
 
+import com.lagradost.desktop.resume.resumeCardState
+
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -105,9 +107,7 @@ fun typeLabel(t: TvType?): String? = when (t) {
 
 /** Fraction watched (0..1) of a continue-watching entry, null for ordinary results */
 fun SearchResponse.watchedFraction(): Float? {
-    val pos = (this as? DataStoreHelper.ResumeWatchingResult)?.watchPos ?: return null
-    if (pos.duration <= 0) return null
-    return (pos.position.toFloat() / pos.duration.toFloat()).coerceIn(0f, 1f)
+    return resumeCardState()?.progress?.fraction?.toFloat()
 }
 
 @Composable

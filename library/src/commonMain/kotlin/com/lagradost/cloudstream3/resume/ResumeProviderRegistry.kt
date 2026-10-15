@@ -17,7 +17,11 @@ sealed interface ResumeCallResult<out T> {
     data class Failure(val reason: ResumeFailure) : ResumeCallResult<Nothing>
 }
 
-fun interface ResumeRegistration { fun close() }
+fun interface ResumeRegistration {
+    fun close()
+    /** Call after login/logout or extension preference changes to invalidate host cards/resolvers. */
+    fun invalidate() {}
+}
 
 /**
  * Host-owned registry. It stores handlers, not account history, secrets, or a playback outbox.
@@ -41,6 +45,8 @@ class ResumeProviderRegistry(
     init { require(timeoutMs > 0) }
 
     fun registeredSources(): Set<ResumeSourceKey> = records.value.keys.toSet()
+    fun supports(owner: ResumeSourceKey, capability: ResumeCapability): Boolean =
+        capability in (records.value[owner]?.capabilities ?: emptySet())
 
     fun register(owner: ResumeSourceKey, source: ContinueWatchingSource): ResumeRegistration {
         val capabilities = source.capabilities.toSet()
@@ -79,6 +85,12 @@ class ResumeProviderRegistry(
             require(page.entries.map { it.itemId }.distinct().size == page.entries.size)
             require(page.nextCursor == null || page.nextCursor != request.cursor)
             page.copy(entries = page.entries.toList())
+        }
+
+    suspend fun getAccountId(owner: ResumeSourceKey, profileId: String): ResumeCallResult<String?> =
+        call(owner, ResumeCapability.READ_LIST) { source ->
+            require(profileId.isNotBlank())
+            source.getAccountId(profileId).also { require(it == null || it.isNotBlank()) }
         }
 
     suspend fun resolveResume(owner: ResumeSourceKey, request: ResumeResolveRequest): ResumeCallResult<ResolvedResume?> =

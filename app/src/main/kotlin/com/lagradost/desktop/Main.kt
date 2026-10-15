@@ -144,6 +144,10 @@ fun main(args: Array<String>) {
     SingletonImageLoader.setSafe { buildImageLoader(AndroidRuntime.context) }
     // The engine starts without any Android UI; a deep link on the command line is handled like an intent
     EventQueue.invokeAndWait {
+        // Development gate until synthetic-plugin/UI and binary-compatibility checks pass.
+        if (java.lang.Boolean.getBoolean("cloudstream.nativeResume.experimental")) {
+            com.lagradost.cloudstream3.resume.NativeResumeBridge.installHostUi()
+        }
         DesktopBootstrap.startEngine()
         com.lagradost.desktop.core.NativeUi.active = true
         args.firstOrNull(isLink)?.let { NativeLinks.open(it) }
