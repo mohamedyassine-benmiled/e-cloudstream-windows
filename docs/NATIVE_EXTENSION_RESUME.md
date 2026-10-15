@@ -1,0 +1,33 @@
+# Optional native extension resume — experimental groundwork
+
+The additive API lives in `library/src/commonMain/kotlin/com/lagradost/cloudstream3/resume` and is kept identical in the Eimon Android and Windows forks.
+
+This milestone adds the data contract, capability negotiation, provider registry, and common tests only. `NativeResumeBridge.getCapabilities()` deliberately returns no enabled capabilities. Native cards, source registration through the app plugin loader, and player event dispatch are **not integrated yet**. Do not disable a stock-host fallback just because the bridge class exists.
+
+## Minimal host integration policy
+
+- Reuse the existing local Continue Watching card presentation and resume/player flow.
+- Add generic inputs for remote episode identity, exact position/duration, display metadata, and scoped callbacks.
+- Preserve existing local-history behaviour; fetching remote entries must not create local watches.
+- Keep provider HTTP/authentication logic, website matching, and **prefer dub over sub** settings inside the extension, not the app.
+- A resolver may choose another audio edition of the requested episode/season, not another episode.
+- Expose capabilities only after their UI/player behaviour is installed and tested.
+- Preserve old plugin constructors/interfaces. An updated extension must load its optional adapter only after successful version/capability detection on a supported host.
+
+## Current contract
+
+- `RemoteResumeEntry`: stable account/item/episode identities, artwork, episode/season/audio, exact timestamp/duration, optional remote ordering metadata, and a bounded opaque resolver token.
+- `ResumeProgress`: retains raw milliseconds while providing clamped seek position, known-duration progress fraction, and remaining time. Unknown duration remains unknown.
+- `ContinueWatchingSource`: optional list, exact episode resolver, and player-progress handler.
+- `ResumeProviderRegistry`: host-owned source keys, capability/version validation, per-source error isolation, account response validation, bounded calls, and cancellation/invalidation when a source is closed/unregistered.
+- No credentials or expiring stream URLs belong in list records or logs. Cancellation cannot undo a network request already accepted by a remote server.
+
+## Tests
+
+```powershell
+.\gradlew.bat :library:jvmTest --tests 'com.lagradost.cloudstream3.resume.*'
+```
+
+The tests cover version negotiation, raw/clamped timestamps, duration handling, malformed/cross-account records, provider isolation, timeout, caller cancellation, unregister cleanup, stale registration handles, and extension-controlled audio substitution. They do not constitute native UI, full-app, or stock-extension binary compatibility tests.
+
+Next: adapt remote cards to existing Continue Watching UI, then feed the resolved target into the existing resume path. No alternative player is planned.
