@@ -14,7 +14,10 @@
 ;   /DAppIdValue=  /DAppNameValue=  /DMsiUpgradeCode=  /DAppExe=  /DShortcutName=  /DLegacyDataTarget=
 
 #ifndef AppVersion
-  #define AppVersion "1.0.3"
+  #define AppVersion "1.0.4"
+#endif
+#ifndef AppVersionLabel
+  #define AppVersionLabel AppVersion + "-eimon"
 #endif
 #ifndef Payload
   #define Payload "..\..\app\build\installer\CloudStream"
@@ -45,12 +48,12 @@
 [Setup]
 AppId={#AppIdValue}
 AppName={#AppNameValue}
-AppVersion={#AppVersion}
-AppVerName={#AppNameValue} {#AppVersion}
-AppPublisher=CloudStream for Windows
-AppPublisherURL=https://github.com/lelouchcodes11/cs3d
-AppSupportURL=https://discord.gg/u82JU5JDM
-AppUpdatesURL=https://github.com/lelouchcodes11/cs3d/releases
+AppVersion={#AppVersionLabel}
+AppVerName={#AppNameValue} {#AppVersionLabel}
+AppPublisher=Eimon CloudStream (unofficial fork)
+AppPublisherURL=https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows
+AppSupportURL=https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows/issues
+AppUpdatesURL=https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows/releases
 VersionInfoVersion={#AppVersion}.0
 ; the folder of an MSI copy when there is one (see [Code]), else %LOCALAPPDATA%\Programs\CloudStream; a copy of this setup program is reused by
 ; Inno itself (UsePreviousAppDir)
@@ -61,7 +64,7 @@ PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutDir}
-OutputBaseFilename=CloudStream-{#AppVersion}-windows-x64-setup
+OutputBaseFilename=CloudStream-{#AppVersionLabel}-windows-x64-setup
 SetupIconFile=..\..\app\src\main\icons\icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppNameValue}

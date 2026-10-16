@@ -2,7 +2,11 @@
 
 The additive API lives in `library/src/commonMain/kotlin/com/lagradost/cloudstream3/resume` and is kept identical in the Eimon Android and Windows forks.
 
-This milestone adds the data contract, capability negotiation, provider registry, and common tests only. `NativeResumeBridge.getCapabilities()` deliberately returns no enabled capabilities. Native cards, source registration through the app plugin loader, and player event dispatch are **not integrated yet**. Do not disable a stock-host fallback just because the bridge class exists.
+The data contract, registry, native account cards and typed exact resume are integrated behind the `cloudstream.nativeResume.experimental` JVM property. Eimon desktop packages enable this property in their launcher; hosts without it keep the gate disabled. Native progress event dispatch is not implemented. Do not disable a stock-host fallback just because the bridge class exists.
+
+## Provider-owned Home rows
+
+Account shelves now enter the ordinary provider Home-page row pipeline rather than a separate global block. Both the provider name and plugin identity must match the selected source. The standard row ordering/hiding and pagination apply; progress, remaining time, resume/open-title/device-hide actions, and sign-in/retry notices remain available. Local Continue Watching/history are unchanged. Remote rows do not replace provider loading/failure states or appear inside another plugin with the same provider name.
 
 ## Minimal host integration policy
 
@@ -30,4 +34,4 @@ This milestone adds the data contract, capability negotiation, provider registry
 
 The tests cover version negotiation, raw/clamped timestamps, duration handling, malformed/cross-account records, provider isolation, timeout, caller cancellation, unregister cleanup, stale registration handles, and extension-controlled audio substitution. They do not constitute native UI, full-app, or stock-extension binary compatibility tests.
 
-Next: adapt remote cards to existing Continue Watching UI, then feed the resolved target into the existing resume path. No alternative player is planned.
+Signed-in UI/resume and device behaviour remain acceptance tests. No alternative player is planned.

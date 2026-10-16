@@ -33,13 +33,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import com.lagradost.desktop.resume.NativeContinueWatching
+import com.lagradost.desktop.resume.NativeResumeNotice
 import com.lagradost.desktop.resume.RemoteResumeCard
 import com.lagradost.desktop.resume.resumeCardState
 import com.lagradost.cloudstream3.resume.NativeResumeBridge
 import com.lagradost.cloudstream3.resume.ResumeCapability
-import com.lagradost.cloudstream3.resume.ResumeListState
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.animateFloat
@@ -97,6 +96,7 @@ import com.lagradost.desktop.ui.fluent.Fluent
 import com.lagradost.desktop.ui.fluent.Icons
 import com.lagradost.desktop.ui.fluent.IconButton
 import com.lagradost.desktop.ui.fluent.MenuItem
+import com.lagradost.desktop.ui.fluent.MenuEntry
 import com.lagradost.desktop.ui.fluent.PosterCard
 import com.lagradost.desktop.ui.fluent.PosterSkeleton
 import com.lagradost.desktop.ui.fluent.ProgressRing
@@ -113,6 +113,13 @@ private val gutter: Dp
 
 /** Opens a card: a continue-watching entry resumes its episode, anything else opens the title page */
 fun openCard(card: SearchResponse) {
+    if (card is NativeResumeNotice) {
+        if (card.signIn) {
+            (com.lagradost.cloudstream3.plugins.PluginManager.plugins[card.owner.pluginId] as? com.lagradost.cloudstream3.plugins.Plugin)
+                ?.openSettings?.invoke(DesktopBootstrap.activity)
+        } else NativeContinueWatching.refresh()
+        return
+    }
     // a title from TMDB or the Explore lists belongs to no extension: the extensions are searched for it
     if (card is com.lagradost.desktop.tmdb.TmdbCard) { Navigator.search(card.name); return }
     if (card is RemoteResumeCard) {
@@ -146,7 +153,6 @@ fun HomeScreen() {
     val page by vm.page.observeAsState()
     val preview by vm.preview.observeAsState()
     val resume by vm.resumeWatching.observeAsState()
-    val nativeResume by NativeContinueWatching.shelves.collectAsState()
     val bookmarks by vm.bookmarks.observeAsState()
     val statusTypes by vm.availableWatchStatusTypes.observeAsState()
     val apiName by vm.apiName.observeAsState()
@@ -217,37 +223,6 @@ fun HomeScreen() {
                 }
             }
             val bm = bookmarks
-            if (com.lagradost.desktop.ui.fluent.Appearance.homeContinue) {
-                nativeResume.forEach { shelf ->
-                    if (shelf.cards.isNotEmpty() || shelf.error != null || shelf.state != ResumeListState.READY || shelf.nextCursor != null) {
-                        item(key = "native-resume-${shelf.owner}") {
-                            Column(Modifier.padding(bottom = space)) {
-                                com.lagradost.desktop.ui.fluent.RichSectionHeader("Continue watching — ${shelf.owner.providerId}",
-                                    Modifier.padding(horizontal = gutter),
-                                    onSeeAll = { Navigator.go(Route.Section("Continue watching — ${shelf.owner.providerId}", shelf.cards)) })
-                                Box(Modifier.height(12.dp))
-                                if (shelf.cards.isNotEmpty()) Shelf(shelf.cards, cardWidth, gutter = gutter, spacing = 14.dp,
-                                    key = { "${it.request.context.accountId}/${it.request.item.itemId}" }) { card ->
-                                    PosterCard(card, { openCard(card) }, cardWidth, subtitle = resumeSubtitle(card), menu = {
-                                        listOf(MenuItem("Resume", Icons.Play) { openCard(card) },
-                                            MenuItem("Open title page", Icons.Info) { Navigator.openDetails(card) },
-                                            MenuItem("Hide from this device", Icons.Delete, destructive = true) { NativeContinueWatching.hide(card) })
-                                    })
-                                }
-                                if (shelf.error != null || shelf.state != ResumeListState.READY) {
-                                    FText(if (shelf.error != null) "Could not refresh this account list. Retry or check the extension's login settings."
-                                        else "Sign in using this extension's settings to load Continue Watching.",
-                                        modifier = Modifier.padding(horizontal = gutter), color = Fluent.colors.textSecondary)
-                                    Button("Retry", { NativeContinueWatching.refresh() }, icon = Icons.Refresh,
-                                        modifier = Modifier.padding(horizontal = gutter))
-                                }
-                                if (shelf.nextCursor != null) Button("Load more", { NativeContinueWatching.loadMore(shelf.owner) },
-                                    modifier = Modifier.padding(horizontal = gutter))
-                            }
-                        }
-                    }
-                }
-            }
             if (bm != null && bm.second.isNotEmpty()) {
                 item(key = "bookmarks") {
                     Column(Modifier.reveal("home/$apiName/bookmarks", 120).padding(bottom = space)) {
@@ -289,12 +264,12 @@ fun HomeScreen() {
                                     val shown = row.list.list.take(chart ?: 10)
                                     Shelf(shown, w, gutter = gutter, spacing = 6.dp, state = state, key = { it.url }) { card ->
                                         com.lagradost.desktop.ui.fluent.RankedPoster(shown.indexOf(card) + 1, w) {
-                                            PosterCard(card, { openCard(card) }, null)
+                                            ProviderPoster(card, null)
                                         }
                                     }
                                 } else {
                                     Shelf(row.list.list, w, gutter = gutter, spacing = 14.dp, state = state, key = { it.url }) { card ->
-                                        PosterCard(card, { openCard(card) }, w, landscape = landscape)
+                                        ProviderPoster(card, w, landscape)
                                     }
                                 }
                             }
@@ -312,6 +287,22 @@ fun HomeScreen() {
             }
         }
     }
+}
+
+/** Native cards travel through the ordinary provider row/layout while retaining resume actions. */
+@Composable
+private fun ProviderPoster(card: SearchResponse, width: Dp?, landscape: Boolean = false) {
+    val menu: (() -> List<MenuEntry>)? = when (card) {
+        is RemoteResumeCard -> ({ listOf(
+            MenuItem("Resume", Icons.Play) { openCard(card) },
+            MenuItem("Open title page", Icons.Info) { Navigator.openDetails(card) },
+            MenuItem("Hide from this device", Icons.Delete, destructive = true) { NativeContinueWatching.hide(card) },
+        ) })
+        is NativeResumeNotice -> ({ listOf(MenuItem(if (card.signIn) "Sign in" else "Retry", Icons.Refresh) { openCard(card) }) })
+        else -> null
+    }
+    PosterCard(card, { openCard(card) }, width, landscape = landscape,
+        subtitle = if (card is RemoteResumeCard) resumeSubtitle(card) else null, menu = menu)
 }
 
 /** "S1 · E3 · 40 min left" (a film: "26 min left") */

@@ -1,3 +1,18 @@
+# Eimon CloudStream for Windows — unofficial fork
+
+This repository is an **unofficial fork** of [lelouchcodes11/cs3d](https://github.com/lelouchcodes11/cs3d), built on CloudStream. It is not an official CloudStream/cs3d release or an upstream-endorsed project. Report fork-specific issues here, not to upstream. Community, donation and other upstream links retained below belong to the original project.
+
+## Eimon account Continue Watching
+
+- Account Continue Watching is an ordinary row **inside its owning extension/provider's Home page**, with normal row ordering/hiding and pagination—not a global account shelf. Provider and plugin ownership must both match.
+- Native cards keep progress/remaining time, Resume, Open title page and device-hide actions, plus automatic resume at the account's saved episode and timestamp. Local Continue Watching/history are unchanged.
+- **Only this account's compatible extensions (AniKoto / AniKoto Account from [the Eimon extension repository](https://github.com/mohamedyassine-benmiled/eimon-cloudstream-repo)) currently support this new feature.** Other extensions can still work normally, but do not gain account Continue Watching or remote auto-resume automatically.
+- Login, episode matching and optional progress uploads remain in the extension. Native player-progress reporting is not added by this update.
+
+### Eimon downloads
+
+Download unsigned test builds from **[this fork's Releases](https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows/releases)**: setup EXE, MSI, portable ZIP and `SHA256SUMS.txt`. The Native test build workflow runs tests and publishes a GitHub prerelease on each push to `feature/native-extension-resume`, or when manually dispatched. These packages enable the experimental native account-resume bridge. Displayed versions, filenames and release tags contain `-eimon`; Windows installer metadata remains numeric as required by MSI.
+
 <p align="center">
   <img src="app/src/main/icons/icon.png" width="96" height="96" alt="CloudStream for Windows icon">
 </p>
@@ -7,16 +22,16 @@
 <h3 align="center">Movies, series, anime and live TV on your PC — in a native Windows 10 & 11 desktop app.</h3>
 
 <p align="center">
-  <a href="../../releases/latest"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%2010%20%7C%2011%20(x64)-0078D4?style=for-the-badge&logo=windows11&logoColor=white"></a>
+  <a href="../../releases"><img alt="Download for Windows" src="https://img.shields.io/badge/Download-Windows%2010%20%7C%2011%20(x64)-0078D4?style=for-the-badge&logo=windows11&logoColor=white"></a>
   <a href="https://t.me/cs3d_official"><img alt="Join the Telegram channel" src="https://img.shields.io/badge/Telegram-Join%20Channel-26A5E4?style=for-the-badge&logo=telegram&logoColor=white"></a>
   <a href="https://discord.gg/u82JU5JDM"><img alt="Join the Discord server" src="https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white"></a>
   <a href="https://razorpay.me/@lelouch11"><img alt="Donate with Razorpay" src="https://img.shields.io/badge/Donate-Razorpay-0C2451?style=for-the-badge&logo=razorpay&logoColor=white"></a>
 </p>
 
 <p align="center">
-  <a href="../../releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/lelouchcodes11/cs3d?include_prereleases&label=release&color=3B7BFF"></a>
-  <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/lelouchcodes11/cs3d/total?color=3B7BFF"></a>
-  <a href="../../actions/workflows/ci.yml"><img alt="CI" src="https://github.com/lelouchcodes11/cs3d/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="../../releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/mohamedyassine-benmiled/eimon-cloudstream-windows?include_prereleases&label=release&color=3B7BFF"></a>
+  <a href="../../releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/mohamedyassine-benmiled/eimon-cloudstream-windows/total?color=3B7BFF"></a>
+  <a href="../../actions/workflows/native-test-build.yml"><img alt="CI" src="https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows/actions/workflows/native-test-build.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-3B7BFF"></a>
   <img alt="Runs on the CloudStream engine" src="https://img.shields.io/badge/engine-CloudStream%204.8-3B7BFF">
 </p>
@@ -57,7 +72,7 @@
 
 ## ⬇️ Download & Install
 
-Open **[Releases](../../releases/latest)** and pick the package that fits how you want to run CloudStream on **Windows 10 or 11 (64-bit)**:
+Open **[Releases](../../releases)** and pick the package that fits how you want to run CloudStream on **Windows 10 or 11 (64-bit)**:
 
 | Package | File | Best For |
 | :--- | :--- | :--- |

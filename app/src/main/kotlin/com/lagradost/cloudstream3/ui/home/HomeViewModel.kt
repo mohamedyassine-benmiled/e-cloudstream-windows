@@ -3,6 +3,12 @@ package com.lagradost.cloudstream3.ui.home
 import android.os.Build
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.MediatorLiveData
+import com.lagradost.desktop.resume.NativeContinueWatching
+import com.lagradost.desktop.resume.NativeResumeNotice
+import com.lagradost.desktop.resume.NativeResumeShelf
+import com.lagradost.desktop.resume.belongsToHomeProvider
+import com.lagradost.cloudstream3.resume.ResumeListState
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.lagradost.cloudstream3.APIHolder.apis
@@ -55,6 +61,7 @@ import com.lagradost.cloudstream3.utils.downloader.DownloadObjects
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import java.util.EnumSet
 import java.util.concurrent.CopyOnWriteArrayList
@@ -240,11 +247,48 @@ class HomeViewModel : ViewModel() {
     private val expandable: MutableMap<String, ExpandableHomepageList> = mutableMapOf()
     private val _page =
         MutableLiveData<Resource<Map<String, ExpandableHomepageList>>>(Resource.Loading())
-    val page: LiveData<Resource<Map<String, ExpandableHomepageList>>> = _page
+    private val nativeShelves = MutableLiveData(NativeContinueWatching.shelves.value).also { output ->
+        viewModelScope.launchSafe { NativeContinueWatching.shelves.collect { output.postValue(it) } }
+    }
+    val page: LiveData<Resource<Map<String, ExpandableHomepageList>>> =
+        MediatorLiveData<Resource<Map<String, ExpandableHomepageList>>>().apply {
+            fun publish() {
+                val base = _page.value ?: Resource.Loading()
+                val remote = visibleNativeShelves().mapNotNull(::nativeHomeList).associateBy { it.list.name }
+                value = if (remote.isEmpty() || base !is Resource.Success) base
+                    else Resource.Success(remote + base.value)
+            }
+            addSource(_page) { publish() }
+            addSource(nativeShelves) { publish() }
+            addSource(_apiName) { publish() }
+        }
+
+    private fun visibleNativeShelves(): List<NativeResumeShelf> {
+        val provider = getApiFromNameNull(_apiName.value) ?: return emptyList()
+        return nativeShelves.value.orEmpty().filter { it.owner.belongsToHomeProvider(provider.name, provider.sourcePlugin) }
+    }
+
+    private fun nativeShelfName(shelf: NativeResumeShelf): String = "Continue watching — ${shelf.owner.providerId}"
+
+    private fun nativeHomeList(shelf: NativeResumeShelf): ExpandableHomepageList? {
+        val signIn = shelf.state != ResumeListState.READY
+        val notice = when {
+            signIn -> "Sign in using this extension's settings to load Continue Watching."
+            shelf.error != null -> "Could not refresh this account list. Select to retry."
+            else -> null
+        }
+        val cards: List<SearchResponse> = shelf.cards + listOfNotNull(notice?.let { NativeResumeNotice(shelf.owner, signIn, it) })
+        if (cards.isEmpty() && shelf.nextCursor == null) return null
+        return ExpandableHomepageList(HomePageList(nativeShelfName(shelf), cards), 1, shelf.nextCursor != null)
+    }
 
     val lock: MutableSet<String> = mutableSetOf()
 
     suspend fun expandAndReturn(name: String): ExpandableHomepageList? {
+        visibleNativeShelves().firstOrNull { nativeShelfName(it) == name }?.let { shelf ->
+            NativeContinueWatching.loadMore(shelf.owner)
+            return visibleNativeShelves().firstOrNull { it.owner == shelf.owner }?.let(::nativeHomeList)
+        }
         if (lock.contains(name)) return null
         lock += name
 

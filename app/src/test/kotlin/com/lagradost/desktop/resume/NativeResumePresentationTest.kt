@@ -8,6 +8,16 @@ import com.lagradost.cloudstream3.utils.DataStoreHelper
 import kotlin.test.*
 
 class NativeResumePresentationTest {
+    @Test fun accountShelfAppearsOnlyInsideItsOwningProvider() {
+        val owner = ResumeSourceKey("plugin-a", "AniKoto")
+        assertTrue(owner.belongsToHomeProvider("AniKoto", "plugin-a"))
+        assertFalse(owner.belongsToHomeProvider("Qrmzi", "plugin-a"))
+        assertFalse(owner.belongsToHomeProvider("AniKoto Account", "plugin-a"))
+        assertFalse(owner.belongsToHomeProvider("AniKoto", "plugin-b"))
+        assertFalse(owner.belongsToHomeProvider("AniKoto", null))
+        assertFalse(owner.belongsToHomeProvider(null, null))
+    }
+
     private val episode = ResumeEpisode("series", "episode-sub", "12", 1, "sub")
     private fun remote() = RemoteResumeCard(RemoteResumeRequest(ResumeSourceKey("plugin", "provider"), ResumeContext("0", "account"),
         RemoteResumeEntry("item", "account", "Title", "detail", episode, ResumeProgress(59_123, 120_000), "opaque", mediaType = "Anime"), 0))

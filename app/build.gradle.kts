@@ -36,7 +36,8 @@ kotlin {
 val appVersion = "4.8.0"
 
 /** This desktop app's own release version: the installer, the About page and the update checker (a GitHub release tag `v<this>`) */
-val desktopVersion = "1.0.3"
+val desktopVersion = "1.0.4"
+val desktopDisplayVersion = "$desktopVersion-eimon"
 
 /**
  * Generates com.lagradost.cloudstream3.R and packages the resources: the Android libraries' res/
@@ -476,7 +477,7 @@ val generateBuildConfig = tasks.register<GenerateBuildConfig>("generateBuildConf
             "FLAVOR" to "String \$NAME = \"stable\"",
             "VERSION_CODE" to "int \$NAME = 68",
             "VERSION_NAME" to "String \$NAME = \"$appVersion\"",
-            "DESKTOP_VERSION" to "String \$NAME = \"$desktopVersion\"",
+            "DESKTOP_VERSION" to "String \$NAME = \"$desktopDisplayVersion\"",
             "BUILD_DATE" to "long \$NAME = ${System.currentTimeMillis() / 86_400_000L * 86_400_000L}L",
             "SIMKL_CLIENT_ID" to "String \$NAME = \"${secret("SIMKL_CLIENT_ID", "simkl.id")}\"",
             "SIMKL_CLIENT_SECRET" to "String \$NAME = \"${secret("SIMKL_CLIENT_SECRET", "simkl.secret")}\"",
@@ -802,6 +803,7 @@ compose.desktop {
     application {
         mainClass = "com.lagradost.desktop.MainKt"
         jvmArgs += listOf(
+            "-Dcloudstream.nativeResume.experimental=true",
             "--enable-native-access=ALL-UNNAMED",
             "--add-opens=java.base/java.lang=ALL-UNNAMED",
             "--add-opens=java.desktop/sun.awt=ALL-UNNAMED",
@@ -955,7 +957,7 @@ tasks.register<Zip>("portableZip") {
     description = "Portable zip of a release in dist/release (no data folder)"
     dependsOn("portableDist")
     from(rootProject.layout.projectDirectory.dir("dist/CloudStream-Portable")) { exclude("data", "data/**") }
-    archiveFileName.set("CloudStream-$desktopVersion-windows-x64-portable.zip")
+    archiveFileName.set("CloudStream-$desktopDisplayVersion-windows-x64-portable.zip")
     destinationDirectory.set(rootProject.layout.projectDirectory.dir("dist/release"))
 }
 
@@ -1002,7 +1004,7 @@ tasks.register("installerMsi") {
         if (patcher.waitFor() != 0) throw GradleException("patching the MSI failed:\n$patchLog")
         println(patchLog.trim())
         val out = dest.asFile.also { it.mkdirs() }
-        val msi = File(out, "CloudStream-$version-windows-x64.msi")
+        val msi = File(out, "CloudStream-$desktopDisplayVersion-windows-x64.msi")
         built.copyTo(msi, overwrite = true)
         println("installerMsi: ${msi.absolutePath} (${msi.length() / 1_048_576} MB)")
     }

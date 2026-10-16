@@ -28,6 +28,21 @@ data class RemoteResumeCard(val request: RemoteResumeRequest) : SearchResponse {
     override var score: Score? = null
 }
 
+/** An account notice remains inside its provider row and never pretends to be a playable title. */
+data class NativeResumeNotice(val owner: ResumeSourceKey, val signIn: Boolean, override val name: String) : SearchResponse {
+    override val url = "native-resume-notice:${owner.providerId}:$signIn"
+    override val apiName = owner.providerId
+    override var type: TvType? = TvType.Others
+    override var posterUrl: String? = null
+    override var posterHeaders: Map<String, String>? = null
+    override var id: Int? = null
+    override var quality: SearchQuality? = null
+    override var score: Score? = null
+}
+
+internal fun ResumeSourceKey.belongsToHomeProvider(providerName: String?, providerPlugin: String?): Boolean =
+    providerPlugin != null && providerId == providerName && pluginId == providerPlugin
+
 /** Same presentation inputs for the existing local card and extension-backed cards. */
 data class ResumeCardState(val number: String?, val season: Int?, val audio: String?, val progress: ResumeProgress?)
 
@@ -115,13 +130,12 @@ object NativeContinueWatching {
         }
     }
 
-    fun loadMore(owner: ResumeSourceKey) {
-        if (!more.add(owner)) return
-        scope.launch {
+    suspend fun loadMore(owner: ResumeSourceKey) = withContext(Dispatchers.IO) {
+        if (!more.add(owner)) return@withContext
             try {
-                val old = state.value.firstOrNull { it.owner == owner } ?: return@launch
-                val context = old.context ?: return@launch
-                val cursor = old.nextCursor ?: return@launch
+                val old = state.value.firstOrNull { it.owner == owner } ?: return@withContext
+                val context = old.context ?: return@withContext
+                val cursor = old.nextCursor ?: return@withContext
                 val revision = NativeResumeBridge.changes.value
                 permits.withPermit {
                     val account = NativeResumeBridge.getAccountId(owner, context.profileId)
@@ -143,7 +157,6 @@ object NativeContinueWatching {
                     } }
                 }
             } finally { more.remove(owner) }
-        }
     }
 
     private fun hideKey(card: RemoteResumeCard): String {
