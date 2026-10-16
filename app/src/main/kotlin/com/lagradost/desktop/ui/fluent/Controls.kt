@@ -97,6 +97,9 @@ import kotlin.math.roundToInt
 /** True after the last input was the keyboard: focus rings are only drawn then */
 object InputMode {
     var keyboard by mutableStateOf(false)
+    var touchscreen by mutableStateOf(false)
+    val touchUi: Boolean get() = Appearance.touchSwipes == TouchSwipes.On ||
+        (Appearance.touchSwipes == TouchSwipes.Auto && touchscreen)
 }
 
 @Composable
@@ -635,7 +638,7 @@ fun Slider(
                 awaitPointerEventScope {
                     while (true) {
                         val e = awaitPointerEvent()
-                        if (e.type == PointerEventType.Press && e.buttons.isPrimaryPressed && !dragging) {
+                        if (e.type == PointerEventType.Press && e.primaryContactPressed && !dragging) {
                             setFromX(e.changes.first().position.x)
                         }
                         if (e.type == PointerEventType.Release && !dragging) onValueChangeFinished?.invoke()

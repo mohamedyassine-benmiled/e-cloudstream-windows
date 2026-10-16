@@ -35,8 +35,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run resume tests
-        run: ./gradlew :app:test --tests "com.lagradost.desktop.resume.*" :library:jvmTest --tests "com.lagradost.cloudstream3.resume.*" --no-daemon
+      - name: Run resume and touchscreen tests
+        run: ./gradlew :app:test --tests "com.lagradost.desktop.resume.*" --tests "com.lagradost.desktop.ui.fluent.TouchScroll*" :library:jvmTest --tests "com.lagradost.cloudstream3.resume.*" --no-daemon
 
       - name: Build portable ZIP
         run: ./gradlew :app:portableZip --no-daemon
@@ -112,6 +112,8 @@ jobs:
           $tag = "v$ver-eimon.$env:GITHUB_RUN_NUMBER"
           @'
           Unofficial Eimon fork — not an official CloudStream/cs3d release.
+
+          Windows touchscreen support: vertical page/list swipes, horizontal poster-shelf swipes, tap-versus-drag handling, and touch-aware player controls. Settings → Appearance → Touchscreen swipes offers Auto / On / Off; On is a fallback for drivers without touch-source detection and also enables mouse drag-to-scroll. Maximized window controls and the navigation dock remain accessible during touch use. Single-finger support; physical touchscreen acceptance testing remains necessary.
 
           Account Continue Watching is now an ordinary row inside its owning provider, retaining progress/remaining time, pagination and native episode/timestamp resume. Only the maintainer's compatible AniKoto / AniKoto Account extensions currently support this feature; other extensions are unchanged. No extension update is needed for row placement.
 

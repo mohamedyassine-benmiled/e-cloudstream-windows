@@ -174,6 +174,12 @@ fun NativeOverlayWindow(focusable: Boolean, content: @Composable () -> Unit) {
         size = if (canvas.width > 0 && canvas.height > 0) DpSize(canvas.width.dp, canvas.height.dp) else DpSize(400.dp, 300.dp),
     )
     DialogWindow(onCloseRequest = {}, state = state, visible = placed, undecorated = true, transparent = true, resizable = false, focusable = focusable) {
+        LaunchedEffect(window) {
+            while (true) {
+                com.lagradost.desktop.platform.WindowsTouch.install(window)
+                delay(2000)
+            }
+        }
         // a picture of a whole number of pixels at 125 / 150 / 175 %: the 1 px edges of the glass pills and menus are not smeared by a stretch
         remember(window) { com.lagradost.desktop.platform.EvenPixels.install(window) }
         DisposableEffect(Unit) {

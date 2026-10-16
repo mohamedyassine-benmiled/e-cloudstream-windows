@@ -196,7 +196,7 @@ fun AppShell() {
     val c = Fluent.colors
     // 1 = the bottom dock is shown, 0 = it has slid away; a new page always shows it
     // (only when "Hide the dock while scrolling" is on in Settings)
-    val dockShown by animateFloatAsState(if (Appearance.dockAutoHide && ShellState.dockHidden) 0f else 1f, FluentMotion.tweenIn(220), label = "dockShown")
+    val dockShown by animateFloatAsState(if (Appearance.dockAutoHide && ShellState.dockHidden && !com.lagradost.desktop.ui.fluent.InputMode.touchUi) 0f else 1f, FluentMotion.tweenIn(220), label = "dockShown")
     LaunchedEffect(Navigator.current.id) { ShellState.dockHidden = false }
     Box(Modifier.fillMaxSize().background(c.bg)) {
         ScreenWarmup()

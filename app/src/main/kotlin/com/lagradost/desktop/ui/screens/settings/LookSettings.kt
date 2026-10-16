@@ -132,6 +132,9 @@ fun LayoutAndStyleCards() {
         SettingsCard("Spacing", "Room between and around items.") {
             ComboBox(Density.entries.toList(), Appearance.density, { it.label }, { Appearance.density = it; changed() }, minWidth = 150.dp)
         }
+        SettingsCard("Touchscreen swipes", "Auto recognizes Windows finger input. Swipe pages vertically and shelves horizontally; tap to open. If your touchscreen driver is not detected, choose On (also enables mouse drag-to-scroll). Off keeps standard desktop scrolling.") {
+            ComboBox(com.lagradost.desktop.ui.fluent.TouchSwipes.entries.toList(), Appearance.touchSwipes, { it.label }, { Appearance.touchSwipes = it; changed() }, minWidth = 150.dp)
+        }
         SettingsCard("Interface size", "Makes everything larger or smaller than the Windows scale: ${(Appearance.uiScale * 100).toInt()} %") {
             Slider(Appearance.uiScale, { Appearance.uiScale = (Math.round(it * 20f) / 20f) }, Modifier.width(220.dp), valueRange = 0.8f..1.3f, onValueChangeFinished = { changed() })
         }

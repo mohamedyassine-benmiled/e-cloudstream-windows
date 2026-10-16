@@ -79,6 +79,7 @@ enum class Upscaler(val label: String, val detail: String, val scaler: String, v
  * follows a change at once, and is saved in the app preferences.
  */
 object Appearance {
+    var touchSwipes by mutableStateOf(TouchSwipes.Auto)
     var navPosition by mutableStateOf(NavPosition.Floating)
     var navStyle by mutableStateOf(NavStyle.Hover)
 
@@ -212,6 +213,7 @@ object Appearance {
             nativePlayer = p.getBoolean(PREFIX + "native_player", false)
             smoothSources = p.getBoolean(PREFIX + "smooth_sources", true)
             hideTitleBar = p.getBoolean(PREFIX + "hide_title_bar", true)
+            touchSwipes = enumOf(p.getString(PREFIX + "touch_swipes", null), TouchSwipes.Auto)
             // before the modes there was one switch, Anime4K on or off: it becomes Mode A
             upscaler = enumOf(p.getString(PREFIX + "upscaler", null), if (p.getBoolean(PREFIX + "anime4k", false)) Upscaler.Anime4kA else Upscaler.Off)
             audioDecoder = enumOf(p.getString(PREFIX + "audio_decoder", null), AudioDecoder.Software)
@@ -261,6 +263,7 @@ object Appearance {
                 .putBoolean(PREFIX + "native_player", nativePlayer)
                 .putBoolean(PREFIX + "smooth_sources", smoothSources)
                 .putBoolean(PREFIX + "hide_title_bar", hideTitleBar)
+                .putString(PREFIX + "touch_swipes", touchSwipes.name)
                 .putString(PREFIX + "upscaler", upscaler.name)
                 .putBoolean(PREFIX + "auto_skip_stamps", autoSkipStamps)
                 .putBoolean(PREFIX + "auto_skip_delay_5s", autoSkipDelay5s)
@@ -286,6 +289,7 @@ object Appearance {
     fun reset() {
         navPosition = NavPosition.Floating; navStyle = NavStyle.Hover; cornerRadius = 12; density = Density.Standard
         posterSize = PosterSize.Large; backdrop = Backdrop.Black; buttonStyle = ButtonStyle.White; surfaceTint = SurfaceTint.Balanced; navAccentPill = false; glass = true; motion = Motion.Full; uiScale = 1f
+        touchSwipes = TouchSwipes.Auto
         playerStyle = PlayerStyle.Modern; startupAnimation = true; hoverZoom = true; smoothMotion = true; nativePlayer = false; smoothSources = true; hideTitleBar = true; upscaler = Upscaler.Off; autoSkipStamps = false; autoSkipDelay5s = false; showRemainingTime = false; dockAutoHide = false; tmdbEnabled = true; tmdbRegion = ""; theme = Themes.DEFAULT_ID; themeGlow = false; hideSpoilers = true; hideSpoilerTitles = false
         FluentSettings.chooseAccent(null)
         FluentSettings.chooseButtonColor(null)

@@ -1,5 +1,7 @@
 package com.lagradost.desktop.ui.screens.player
 
+import com.lagradost.desktop.ui.fluent.primaryContactPressed
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
@@ -420,10 +422,10 @@ internal fun ModernSeekBar(s: PlayerSession) {
                         when (e.type) {
                             PointerEventType.Move, PointerEventType.Enter -> {
                                 hoverX = x
-                                if (e.buttons.isPrimaryPressed) dragFraction = (x / width).coerceIn(0f, 1f)
+                                if (e.primaryContactPressed) dragFraction = (x / width).coerceIn(0f, 1f)
                             }
                             PointerEventType.Exit -> hoverX = null
-                            PointerEventType.Press -> if (e.buttons.isPrimaryPressed) { dragFraction = (x / width).coerceIn(0f, 1f); e.changes.forEach { it.consume() } }
+                            PointerEventType.Press -> if (e.primaryContactPressed) { dragFraction = (x / width).coerceIn(0f, 1f); e.changes.forEach { it.consume() } }
                             PointerEventType.Release -> {
                                 dragFraction?.let { f -> s.seekTo((f * s.durationMs).toLong()) }
                                 dragFraction = null

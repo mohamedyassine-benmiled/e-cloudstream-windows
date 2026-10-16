@@ -116,6 +116,7 @@ fun ApplicationScope.NativeWindow() {
             // Compose's canvas window can be recreated; it must keep letting the frame decide over the caption area
             LaunchedEffect(window) {
                 while (true) {
+                    com.lagradost.desktop.platform.WindowsTouch.install(window)
                     delay(2000)
                     if (com.lagradost.desktop.platform.WinChrome.enabled) com.lagradost.desktop.platform.WinChrome.refreshChildren(window)
                 }
@@ -159,7 +160,11 @@ fun ApplicationScope.NativeWindow() {
                         awaitPointerEventScope {
                             while (true) {
                                 val e = awaitPointerEvent(PointerEventPass.Initial)
-                                if (e.type == PointerEventType.Press) InputMode.keyboard = false
+                                if (e.type == PointerEventType.Press) {
+                                    InputMode.keyboard = false
+                                    InputMode.touchscreen = e.changes.any { it.type == androidx.compose.ui.input.pointer.PointerType.Touch } ||
+                                        com.lagradost.desktop.platform.WindowsTouch.lastPrimaryWasTouch
+                                }
                                 // the pointer is over the app, not over a caption button
                                 if (e.type == PointerEventType.Move) com.lagradost.desktop.platform.WinChrome.hover = 0
                             }

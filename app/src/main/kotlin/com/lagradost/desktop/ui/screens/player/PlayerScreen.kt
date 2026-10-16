@@ -1,5 +1,7 @@
 package com.lagradost.desktop.ui.screens.player
 
+import com.lagradost.desktop.ui.fluent.primaryContactPressed
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -25,7 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.lazy.LazyColumn
+import com.lagradost.desktop.ui.fluent.TouchLazyColumn as LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -350,7 +352,7 @@ private fun PlayerContent(s: PlayerSession) {
                 val e = awaitPointerEvent()
                 val change = e.changes.firstOrNull() ?: continue
                 when {
-                    e.type == PointerEventType.Press -> downAt = if (e.buttons.isPrimaryPressed) change.position else null
+                    e.type == PointerEventType.Press -> downAt = if (e.primaryContactPressed) change.position else null
                     e.type == PointerEventType.Release -> {
                         val start = downAt ?: continue
                         downAt = null
@@ -1030,10 +1032,10 @@ private fun SeekBar(s: PlayerSession) {
                         when (e.type) {
                             PointerEventType.Move, PointerEventType.Enter -> {
                                 hoverX = x
-                                if (e.buttons.isPrimaryPressed) dragFraction = (x / width).coerceIn(0f, 1f)
+                                if (e.primaryContactPressed) dragFraction = (x / width).coerceIn(0f, 1f)
                             }
                             PointerEventType.Exit -> { hoverX = null }
-                            PointerEventType.Press -> if (e.buttons.isPrimaryPressed) { dragFraction = (x / width).coerceIn(0f, 1f); e.changes.forEach { it.consume() } }
+                            PointerEventType.Press -> if (e.primaryContactPressed) { dragFraction = (x / width).coerceIn(0f, 1f); e.changes.forEach { it.consume() } }
                             PointerEventType.Release -> {
                                 dragFraction?.let { f -> s.seekTo((f * s.durationMs).toLong()) }
                                 dragFraction = null

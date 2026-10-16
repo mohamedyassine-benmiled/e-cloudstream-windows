@@ -9,6 +9,12 @@ This repository is an **unofficial fork** of [lelouchcodes11/cs3d](https://githu
 - **Only this account's compatible extensions (AniKoto / AniKoto Account from [the Eimon extension repository](https://github.com/mohamedyassine-benmiled/eimon-cloudstream-repo)) currently support this new feature.** Other extensions can still work normally, but do not gain account Continue Watching or remote auto-resume automatically.
 - Login, episode matching and optional progress uploads remain in the extension. Native player-progress reporting is not added by this update.
 
+## Windows touchscreen input
+
+In **Settings → Appearance → Touchscreen swipes**, use **Auto** for Windows finger-input detection. Swipe vertically through pages, settings and episode/dialog lists, or horizontally through poster shelves. A swipe cancels the card's click; a tap still opens it. Normal mouse-wheel and keyboard navigation remain available. Native touch pointers keep Compose's own scrolling, while mouse-promoted Windows touch gains drag scrolling and release momentum. While touch is active, the maximized title bar and navigation dock stay accessible without hovering.
+
+If a touchscreen driver does not expose Windows' touch signature, choose **On**. This fallback also enables ordinary mouse drag-to-scroll. Choose **Off** to disable the compatibility handler. This is single-finger input support, not pinch zoom, and does not automatically open the Windows touch keyboard. Physical touchscreen behaviour still needs device confirmation.
+
 ### Eimon downloads
 
 Download unsigned test builds from **[this fork's Releases](https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows/releases)**: setup EXE, MSI, portable ZIP and `SHA256SUMS.txt`. The Native test build workflow runs tests and publishes a GitHub prerelease on each push to `feature/native-extension-resume`, or when manually dispatched. These packages enable the experimental native account-resume bridge. Displayed versions, filenames and release tags contain `-eimon`; Windows installer metadata remains numeric as required by MSI.

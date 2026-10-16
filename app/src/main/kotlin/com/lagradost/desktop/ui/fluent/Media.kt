@@ -252,7 +252,8 @@ fun <T> Shelf(
     Box(modifier.fillMaxWidth().hoverable(source).onSizeChanged { width = it.width }) {
         LazyRow(
             // a row with no gutter (chips) is cut at its own edge: the cut end fades into the page instead of showing half a chip
-            modifier = if (gutter == 0.dp) Modifier.scrollEdgeFade(state) else Modifier,
+            modifier = (if (gutter == 0.dp) Modifier.scrollEdgeFade(state) else Modifier)
+                .touchScroll(state, androidx.compose.foundation.gestures.Orientation.Horizontal),
             state = state,
             contentPadding = PaddingValues(horizontal = gutter),
             horizontalArrangement = Arrangement.spacedBy(spacing),
