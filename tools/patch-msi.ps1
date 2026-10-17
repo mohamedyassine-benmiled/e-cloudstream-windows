@@ -46,6 +46,10 @@ function Select-Rows($sql, $columns) {
     Call $view 'Close' 'InvokeMethod' $null | Out-Null
 }
 
+# Keep the launcher and upgrade identity stable; change only visible branding.
+Run-Sql 'UPDATE `Property` SET `Value` = ''e-cloudstream'' WHERE `Property` = ''ProductName'''
+Run-Sql 'UPDATE `Shortcut` SET `Name` = ''e-cloudstream'''
+
 # an MSI of an earlier patch (or one patched twice) must not keep the script actions
 foreach ($old in @('CsSetPowerShell', 'CsKeepData', 'CsRestoreData')) {
     Run-Sql ('DELETE FROM `InstallExecuteSequence` WHERE `Action` = ''' + $old + '''')
@@ -80,6 +84,13 @@ Call $db 'Commit' 'InvokeMethod' $null | Out-Null
 # read back what the file contains now
 $wipes = @(Select-Rows 'SELECT `WixRemoveFolderEx`, `Property` FROM `WixRemoveFolderEx`' 2)
 $actions = @(Select-Rows 'SELECT `Action`, `Type`, `Source` FROM `CustomAction`' 3)
+$productName = @(Select-Rows 'SELECT `Value` FROM `Property` WHERE `Property` = ''ProductName''' 1)
+$shortcutNames = @(Select-Rows 'SELECT `Name` FROM `Shortcut`' 1)
+if ($productName.Count -ne 1 -or $productName[0] -ne 'e-cloudstream' -or
+    $shortcutNames.Count -eq 0 -or ($shortcutNames | Where-Object { $_ -ne 'e-cloudstream' })) {
+    throw 'MSI branding patch did not apply'
+}
+$productName | ForEach-Object { "patched: product name $_" }
 $wipes | ForEach-Object { "patched: folder wipe row $_" }
 $onlyPrograms = ($wipes.Count -eq 2) -and (($wipes | Where-Object { $_ -match 'CS_RM_APP|CS_RM_RUNTIME' }).Count -eq 2)
 # nothing in the installer may start a script interpreter or a shell

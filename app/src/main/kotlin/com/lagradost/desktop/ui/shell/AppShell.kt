@@ -118,7 +118,7 @@ object ShellState {
     var dockHidden by mutableStateOf(false)
 
     /** The window title (the player shows what is playing) */
-    var windowTitle by mutableStateOf("CloudStream")
+    var windowTitle by mutableStateOf("e-cloudstream")
     var searchText by mutableStateOf("")
 
     /** Artwork whose colours tint the window behind the pages (Appearance > Backdrop > Ambient) */
@@ -807,10 +807,10 @@ internal val brandLogo by lazy {
 private fun BrandMark(expanded: Boolean) {
     val c = Fluent.colors
     Row(Modifier.fillMaxWidth().height(52.dp).padding(start = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        brandLogo?.let { androidx.compose.foundation.Image(it, "CloudStream", Modifier.size(32.dp)) }
+        brandLogo?.let { androidx.compose.foundation.Image(it, "e-cloudstream", Modifier.size(32.dp)) }
         if (expanded) {
             Box(Modifier.width(12.dp))
-            FText("CloudStream", style = Fluent.type.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = c.text, maxLines = 1, softWrap = false)
+            FText("e-cloudstream", style = Fluent.type.bodyLarge.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), color = c.text, maxLines = 1, softWrap = false)
         }
     }
 }

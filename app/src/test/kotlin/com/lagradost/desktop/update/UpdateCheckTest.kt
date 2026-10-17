@@ -5,9 +5,39 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.test.assertFalse
+import com.lagradost.desktop.AppInfo
 
 /** Versions of release tags and the choice of the file that updates a copy of the app */
 class UpdateCheckTest {
+    @Test
+    fun renamedForkOffersItsPrereleasesWithoutVersionSuffix() {
+        val newer = UpdateCheck.Release("v1.0.8.7", UpdateCheck.parseVersion("v1.0.8.7")!!,
+            true, "", AppInfo.RELEASES_URL, emptyList())
+        assertEquals(newer, UpdateCheck.newestRelease(listOf(newer), "1.0.7"))
+        assertNull(UpdateCheck.newestRelease(listOf(newer), "1.0.8"))
+        assertNull(UpdateCheck.newestRelease(listOf(newer), "1.0.9"))
+        assertEquals("mohamedyassine-benmiled/e-cloudstream-windows", AppInfo.REPO)
+    }
+
+    @Test
+    fun onlyForkReleaseDownloadsAreTrusted() {
+        val prefix = "https://github.com/${AppInfo.REPO}/releases/download/v1.0.8/"
+        assertTrue(UpdateCheck.trustedRepositoryDownload(prefix + "e-cloudstream-1.0.8-windows-x64-setup.exe"))
+        assertFalse(UpdateCheck.trustedRepositoryDownload("https://github.com/lelouchcodes11/cs3d/releases/download/v1/file.exe"))
+        assertFalse(UpdateCheck.trustedRepositoryDownload(prefix.replace("github.com", "github.com.evil.test") + "file.exe"))
+        assertFalse(UpdateCheck.trustedRepositoryDownload(prefix + "../../file.exe"))
+    }
+
+    @Test
+    fun renamedAssetsStillMatchInstallerKind() {
+        val r = release("e-cloudstream-1.0.7-windows-x64-setup.exe", "e-cloudstream-1.0.7-windows-x64.msi",
+            "e-cloudstream-1.0.7-windows-x64-portable.zip")
+        assertEquals("e-cloudstream-1.0.7-windows-x64-setup.exe", r.installerFor(UpdateCheck.InstallKind.Setup)?.name)
+        assertEquals("e-cloudstream-1.0.7-windows-x64.msi", r.installerFor(UpdateCheck.InstallKind.Msi)?.name)
+        assertEquals("e-cloudstream-1.0.7-windows-x64-portable.zip", r.installerFor(UpdateCheck.InstallKind.Portable)?.name)
+    }
+
     private fun release(vararg names: String) = UpdateCheck.Release(
         tag = "v1.0.3", version = UpdateCheck.parseVersion("v1.0.3")!!, prerelease = false, notes = "", pageUrl = "https://example.org/r",
         assets = names.map { UpdateCheck.Asset(it, "https://example.org/$it", 10, null) },

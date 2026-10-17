@@ -1,4 +1,4 @@
-name: Publish Eimon Release Packages
+name: Publish e-cloudstream Release Packages
 
 on:
   workflow_dispatch:

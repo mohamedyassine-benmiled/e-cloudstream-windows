@@ -275,6 +275,12 @@ object InAppUpdater {
     suspend fun Activity.runAutoUpdate(
         checkAutoUpdate: Boolean = true, installPrerelease: Boolean = false
     ): Boolean {
+        // Compatibility entry point: the native updater owns Windows packages and repository checks.
+        if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            if (checkAutoUpdate) com.lagradost.desktop.update.UpdateCheck.startAutoCheck()
+            else com.lagradost.desktop.update.UpdateCheck.checkNow()
+            return true
+        }
         val settingsManager = PreferenceManager.getDefaultSharedPreferences(this)
         val autoUpdateEnabled =
             settingsManager.getBoolean(getString(R.string.auto_update_key), true)

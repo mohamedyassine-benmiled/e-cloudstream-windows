@@ -7,7 +7,7 @@ import com.lagradost.cloudstream3.BuildConfig
  * (update/UpdateCheck.kt) downloads and installs them from there.
  */
 object AppInfo {
-    const val REPO = "mohamedyassine-benmiled/eimon-cloudstream-windows"
+    const val REPO = "mohamedyassine-benmiled/e-cloudstream-windows"
     const val REPO_URL = "https://github.com/$REPO"
     const val RELEASES_URL = "$REPO_URL/releases"
     const val LATEST_RELEASE_URL = RELEASES_URL
@@ -22,6 +22,6 @@ object AppInfo {
 
     val version: String = BuildConfig.DESKTOP_VERSION
 
-    /** Eimon packages are experimental prereleases. */
-    val isPreRelease: Boolean get() = version.contains("-eimon") || version.startsWith("0.")
+    /** Fork packages remain experimental prereleases even without a version suffix. */
+    val isPreRelease: Boolean get() = true
 }

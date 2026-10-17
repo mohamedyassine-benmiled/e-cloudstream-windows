@@ -36,8 +36,8 @@ kotlin {
 val appVersion = "4.8.0"
 
 /** This desktop app's own release version: the installer, the About page and the update checker (a GitHub release tag `v<this>`) */
-val desktopVersion = "1.0.6"
-val desktopDisplayVersion = "$desktopVersion-eimon"
+val desktopVersion = "1.0.7"
+val desktopDisplayVersion = desktopVersion
 
 /**
  * Generates com.lagradost.cloudstream3.R and packages the resources: the Android libraries' res/
@@ -832,12 +832,12 @@ compose.desktop {
             targetFormats(TargetFormat.Msi, TargetFormat.Exe, TargetFormat.Deb, TargetFormat.Dmg)
             packageName = "CloudStream"
             packageVersion = desktopVersion
-            description = "CloudStream for desktop"
-            vendor = "CloudStream Desktop"
+            description = "e-cloudstream for Windows"
+            vendor = "mohamedyassine-benmiled"
             modules("java.sql", "java.naming", "jdk.unsupported", "jdk.crypto.ec", "jdk.crypto.mscapi", "java.management", "jdk.management", "java.net.http", "jdk.accessibility", "jdk.httpserver", "jdk.localedata")
             windows {
                 iconFile.set(project.file("src/main/icons/icon.ico"))
-                menuGroup = "CloudStream"
+                menuGroup = "e-cloudstream"
                 shortcut = true
                 dirChooser = true
                 perUserInstall = true
@@ -958,7 +958,7 @@ tasks.register<Zip>("portableZip") {
     description = "Portable zip of a release in dist/release (no data folder)"
     dependsOn("portableDist")
     from(rootProject.layout.projectDirectory.dir("dist/CloudStream-Portable")) { exclude("data", "data/**") }
-    archiveFileName.set("CloudStream-$desktopDisplayVersion-windows-x64-portable.zip")
+    archiveFileName.set("e-cloudstream-$desktopDisplayVersion-windows-x64-portable.zip")
     destinationDirectory.set(rootProject.layout.projectDirectory.dir("dist/release"))
 }
 
@@ -987,8 +987,8 @@ tasks.register("installerMsi") {
         val jpackage = File(System.getProperty("java.home"), "bin/jpackage.exe")
         val command = listOf(
             jpackage.absolutePath, "--type", "msi", "--app-image", root.absolutePath, "--dest", stage.absolutePath,
-            "--name", "CloudStream", "--app-version", version, "--vendor", "CloudStream Desktop", "--description", "CloudStream for desktop",
-            "--icon", icon.asFile.absolutePath, "--win-per-user-install", "--win-menu", "--win-menu-group", "CloudStream",
+            "--name", "CloudStream", "--app-version", version, "--vendor", "mohamedyassine-benmiled", "--description", "e-cloudstream for Windows",
+            "--icon", icon.asFile.absolutePath, "--win-per-user-install", "--win-menu", "--win-menu-group", "e-cloudstream",
             "--win-shortcut", "--win-dir-chooser", "--win-upgrade-uuid", "8f7a1c2e-8d5a-4b1e-9f0e-6f1c9d3a2b7c",
         )
         val proc = ProcessBuilder(command).directory(stage).redirectErrorStream(true).start()
@@ -1005,7 +1005,7 @@ tasks.register("installerMsi") {
         if (patcher.waitFor() != 0) throw GradleException("patching the MSI failed:\n$patchLog")
         println(patchLog.trim())
         val out = dest.asFile.also { it.mkdirs() }
-        val msi = File(out, "CloudStream-$desktopDisplayVersion-windows-x64.msi")
+        val msi = File(out, "e-cloudstream-$desktopDisplayVersion-windows-x64.msi")
         built.copyTo(msi, overwrite = true)
         println("installerMsi: ${msi.absolutePath} (${msi.length() / 1_048_576} MB)")
     }

@@ -50,8 +50,8 @@ sealed class GithubAction {
     data class SkipUpdate(val file: GithubReleases.GithubFile) : GithubAction()
 }
 
-const val APK_USERNAME = "recloudstream"
-const val APK_REPOSITORY = "cloudstream"
+const val APK_USERNAME = "mohamedyassine-benmiled"
+const val APK_REPOSITORY = "e-cloudstream-windows"
 const val APK_PRERELEASE = "pre-release"
 const val APK_CONTENT_TYPE = "application/vnd.android.package-archive"
 
@@ -139,9 +139,7 @@ class GithubViewModel(
     override fun onAction(action: GithubAction) {
         when (action) {
             GithubAction.SearchForUpdate -> {
-                ioSafe {
-                    searchForUpdate(prerelease = isPrerelease, fromUser = true)
-                }
+                com.lagradost.desktop.update.UpdateCheck.checkNow()
             }
 
             GithubAction.Dismiss -> {
@@ -156,11 +154,7 @@ class GithubViewModel(
             }
 
             GithubAction.AutoSearchForUpdate -> {
-                if (!isDebug && settings.updates.showAppUpdates.get()) {
-                    ioSafe {
-                        searchForUpdate(prerelease = isPrerelease, fromUser = false)
-                    }
-                }
+                com.lagradost.desktop.update.UpdateCheck.startAutoCheck()
             }
 
             is GithubAction.SkipUpdate -> {
@@ -168,9 +162,8 @@ class GithubViewModel(
             }
 
             is GithubAction.Update -> {
-                ioSafe {
-                    installUpdate(action.file.downloadUrl, action.file.digest)
-                }
+                // Never hand Android APKs to the Windows installer path.
+                com.lagradost.desktop.update.UpdateCheck.checkNow()
             }
         }
     }

@@ -165,7 +165,7 @@ fun PlayerScreen(entry: Entry, route: Route.Player) {
         onDispose {
             com.lagradost.desktop.platform.WinMedia.handler = null
             com.lagradost.desktop.platform.WinMedia.keepAwake(false)
-            com.lagradost.desktop.ui.shell.ShellState.windowTitle = "CloudStream"
+            com.lagradost.desktop.ui.shell.ShellState.windowTitle = "e-cloudstream"
             session.exitFullscreen()
             if (session.pip) session.setPip(false)
             session.release()

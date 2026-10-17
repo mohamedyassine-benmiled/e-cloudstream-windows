@@ -112,7 +112,8 @@ object UpdateCheck {
                 val path = base + "\\" + key
                 val name = runCatching { com.sun.jna.platform.win32.Advapi32Util.registryGetStringValue(root, path, "DisplayName") }.getOrNull()
                 val windowsInstaller = runCatching { com.sun.jna.platform.win32.Advapi32Util.registryGetIntValue(root, path, "WindowsInstaller") }.getOrNull() == 1
-                if (!windowsInstaller || name == null || !name.equals("CloudStream", ignoreCase = true)) {
+                if (!windowsInstaller || name == null ||
+                    !(name.equals("CloudStream", ignoreCase = true) || name.equals("e-cloudstream", ignoreCase = true))) {
                     false
                 } else {
                     val location = runCatching { com.sun.jna.platform.win32.Advapi32Util.registryGetStringValue(root, path, "InstallLocation") }.getOrNull()
@@ -205,9 +206,14 @@ object UpdateCheck {
 
     /** The newest release this install should be offered, or null when there is none newer */
     private fun newestOffer(all: List<GhRelease>): Release? {
-        val current = parseVersion(currentVersion) ?: return null
-        val acceptPre = current.numbers.firstOrNull() == 0 || current.preRelease
-        return all.asSequence().filter { !it.draft && (acceptPre || !it.prerelease) }.mapNotNull { toRelease(it) }
+        return newestRelease(all.filter { !it.draft }.mapNotNull { toRelease(it) }, currentVersion)
+    }
+
+    internal fun newestRelease(all: List<Release>, installedVersion: String): Release? {
+        val current = parseVersion(installedVersion) ?: return null
+        // Fork prereleases remain eligible after removing the old -eimon suffix.
+        val acceptPre = AppInfo.isPreRelease || current.numbers.firstOrNull() == 0 || current.preRelease
+        return all.asSequence().filter { acceptPre || !it.prerelease }
             .maxByOrNull { it.version }?.takeIf { it.version > current }
     }
 
@@ -293,7 +299,7 @@ object UpdateCheck {
             when (val s = check()) {
                 is Status.Available -> showUpdateDialog(s.release)
                 is Status.Ready -> showReadyDialog(s.release, s.file)
-                is Status.UpToDate -> Toasts.show("CloudStream $currentVersion is the latest version", false)
+                is Status.UpToDate -> Toasts.show("e-cloudstream $currentVersion is the latest version", false)
                 is Status.Failed -> Toasts.show("Could not check for updates: ${s.reason}", true)
                 else -> {}
             }
@@ -308,8 +314,11 @@ object UpdateCheck {
      * again every half hour while the app stays open (the same limit applies, and nothing is shown during a video).
      * Fails silently, a missing connection is not worth a message at start.
      */
+    private var autoCheckJob: Job? = null
+
     fun startAutoCheck() {
-        scope.launch {
+        if (autoCheckJob?.isActive == true) return
+        autoCheckJob = scope.launch {
             Startup.revealed.await()
             announceUpdated()
             delay(4000)
@@ -463,8 +472,15 @@ object UpdateCheck {
     }
 
     /** Only the repository's own release files are downloaded (a test build with its own update address may use any) */
-    private fun trusted(url: String): Boolean =
-        apiOverride != null || url.startsWith("https://github.com/${AppInfo.REPO}/releases/download/", ignoreCase = true)
+    internal fun trustedRepositoryDownload(url: String): Boolean = runCatching {
+        val uri = java.net.URI(url)
+        uri.scheme == "https" && uri.host == "github.com" && uri.port == -1 && uri.userInfo == null &&
+            uri.rawQuery == null && uri.rawFragment == null &&
+            uri.rawPath.startsWith("/${AppInfo.REPO}/releases/download/") &&
+            uri.path.split('/').none { it == "." || it == ".." }
+    }.getOrDefault(false)
+
+    private fun trusted(url: String): Boolean = apiOverride != null || trustedRepositoryDownload(url)
 
     fun cancelDownload() {
         downloadJob?.cancel()

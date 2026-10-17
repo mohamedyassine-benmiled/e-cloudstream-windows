@@ -188,7 +188,7 @@ object DesktopTrayNotifications {
         val d = data(NIF_MESSAGE or NIF_ICON or NIF_TIP)
         d.uCallbackMessage = WM_TRAY
         d.hIcon = hicon
-        fill(d.szTip, "CloudStream")
+        fill(d.szTip, "e-cloudstream")
         if (shell?.Shell_NotifyIconW(NIM_ADD, d) != true) Log.w(TAG, "Shell_NotifyIcon(NIM_ADD) failed") else Log.i(TAG, "tray icon added")
     }
 
@@ -266,7 +266,7 @@ object DesktopTrayNotifications {
         if (title.isNullOrBlank() && text.isNullOrBlank()) return
 
         lastClickedNotification = notification
-        val displayTitle = if (!title.isNullOrBlank()) title else "CloudStream"
+        val displayTitle = if (!title.isNullOrBlank()) title else "e-cloudstream"
         val displayText = text ?: ""
         val kind = when {
             displayText.contains("error", ignoreCase = true) || displayText.contains("failed", ignoreCase = true) -> NIIF_ERROR

@@ -216,7 +216,7 @@ private fun AccountHeader() {
     ) {
         Box(Modifier.size(40.dp)) { account?.let { com.lagradost.desktop.ui.shell.ProfileAvatar(it, 40.dp) } }
         Column {
-            FText(account?.name ?: "CloudStream", style = Fluent.type.bodyStrong, maxLines = 1)
+            FText(account?.name ?: "e-cloudstream", style = Fluent.type.bodyStrong, maxLines = 1)
             FText("Settings", style = Fluent.type.caption, color = c.textSecondary)
         }
     }
@@ -258,11 +258,11 @@ private fun AboutPage() {
     val dir = AndroidRuntime.dataDir
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
         val pre = if (AppInfo.isPreRelease) " (pre-release)" else ""
-        SettingsCard("CloudStream for Windows", "Version ${AppInfo.version}$pre  ·  a native Windows app on the CloudStream ${BuildConfig.VERSION_NAME} engine")
+        SettingsCard("e-cloudstream", "Version ${AppInfo.version}$pre  ·  a native Windows app on the CloudStream ${BuildConfig.VERSION_NAME} engine")
         SettingsCard("Join us on Telegram", "News, new versions, help and feedback: t.me/cs3d_official", onClick = { DesktopPlatform.openExternalBrowser(AppInfo.TELEGRAM_URL) })
         SettingsCard("Join us on Discord", "Chat, help and ideas with other users: discord.gg/u82JU5JDM", onClick = { DesktopPlatform.openExternalBrowser(AppInfo.DISCORD_URL) })
         UpdateCards()
-        SettingsCard("Support the project", "CloudStream for Windows is free. If it saves you time, a donation keeps it going: razorpay.me/@lelouch11", onClick = { DesktopPlatform.openExternalBrowser(AppInfo.DONATE_URL) })
+        SettingsCard("Support upstream cs3d", "Donations support the original cs3d project, not this independent fork: razorpay.me/@lelouch11", onClick = { DesktopPlatform.openExternalBrowser(AppInfo.DONATE_URL) })
         SettingsCard("App data folder", dir.absolutePath, onClick = { DesktopPlatform.openFile(dir) })
         SettingsCard("Keyboard shortcuts", "The keys of the player: play, seek, volume, full screen, subtitles and more (F1 in the player shows the same list)", onClick = { com.lagradost.desktop.ui.screens.player.Shortcuts.show() })
         SettingsCard("Copy diagnostics", "Puts what a bug report needs on the clipboard: versions, your PC and screens, VPN adapters, the player's output and the latest errors. Passwords and tokens are left out.", onClick = {

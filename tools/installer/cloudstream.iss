@@ -14,10 +14,10 @@
 ;   /DAppIdValue=  /DAppNameValue=  /DMsiUpgradeCode=  /DAppExe=  /DShortcutName=  /DLegacyDataTarget=
 
 #ifndef AppVersion
-  #define AppVersion "1.0.6"
+  #define AppVersion "1.0.7"
 #endif
 #ifndef AppVersionLabel
-  #define AppVersionLabel AppVersion + "-eimon"
+  #define AppVersionLabel AppVersion
 #endif
 #ifndef Payload
   #define Payload "..\..\app\build\installer\CloudStream"
@@ -29,7 +29,7 @@
   #define AppIdValue "{{F3625499-8B66-4BA5-BBDE-814971321691}"
 #endif
 #ifndef AppNameValue
-  #define AppNameValue "CloudStream for Windows"
+  #define AppNameValue "e-cloudstream"
 #endif
 ; the UpgradeCode jpackage was given in app/build.gradle.kts (--win-upgrade-uuid): the same in every MSI of the project
 #ifndef MsiUpgradeCode
@@ -39,7 +39,7 @@
   #define AppExe "CloudStream.exe"
 #endif
 #ifndef ShortcutName
-  #define ShortcutName "CloudStream"
+  #define ShortcutName "e-cloudstream"
 #endif
 #ifndef LegacyDataTarget
   #define LegacyDataTarget "{userappdata}\CloudStream"
@@ -50,21 +50,21 @@ AppId={#AppIdValue}
 AppName={#AppNameValue}
 AppVersion={#AppVersionLabel}
 AppVerName={#AppNameValue} {#AppVersionLabel}
-AppPublisher=Eimon CloudStream (unofficial fork)
-AppPublisherURL=https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows
-AppSupportURL=https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows/issues
-AppUpdatesURL=https://github.com/mohamedyassine-benmiled/eimon-cloudstream-windows/releases
+AppPublisher=mohamedyassine-benmiled (unofficial fork)
+AppPublisherURL=https://github.com/mohamedyassine-benmiled/e-cloudstream-windows
+AppSupportURL=https://github.com/mohamedyassine-benmiled/e-cloudstream-windows/issues
+AppUpdatesURL=https://github.com/mohamedyassine-benmiled/e-cloudstream-windows/releases
 VersionInfoVersion={#AppVersion}.0
 ; the folder of an MSI copy when there is one (see [Code]), else %LOCALAPPDATA%\Programs\CloudStream; a copy of this setup program is reused by
 ; Inno itself (UsePreviousAppDir)
 DefaultDirName={code:DefaultAppDir}
-DefaultGroupName=CloudStream
+DefaultGroupName=e-cloudstream
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutDir}
-OutputBaseFilename=CloudStream-{#AppVersionLabel}-windows-x64-setup
+OutputBaseFilename=e-cloudstream-{#AppVersionLabel}-windows-x64-setup
 SetupIconFile=..\..\app\src\main\icons\icon.ico
 UninstallDisplayIcon={app}\{#AppExe}
 UninstallDisplayName={#AppNameValue}
@@ -88,7 +88,7 @@ Name: "{autoprograms}\{#ShortcutName}"; Filename: "{app}\{#AppExe}"
 Name: "{autodesktop}\{#ShortcutName}"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\{#AppExe}"; Description: "Start CloudStream"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\{#AppExe}"; Description: "Start e-cloudstream"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 ; only the program: the settings live in %APPDATA%\CloudStream and are not touched

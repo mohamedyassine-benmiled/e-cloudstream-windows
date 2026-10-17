@@ -1,4 +1,6 @@
-# Contributing to CloudStream for Windows
+# Contributing to e-cloudstream for Windows
+
+This is an independent fork directed by @mohamedyassine-benmiled. Contributions and fork-specific issues belong here. Its website-specific features are not intended as upstream pull requests. Before implementation, read [AGENTS.md](AGENTS.md), [AI-POLICY.md](AI-POLICY.md) and the upstream-sync procedure. The maintained branch is `main`; current downloads are in this fork's Releases. The remaining engine/build guidance below is inherited from cs3d.
 
 Thank you for your interest in contributing to **CloudStream for Windows**!
 
