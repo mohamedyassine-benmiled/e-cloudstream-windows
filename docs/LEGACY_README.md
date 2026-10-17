@@ -4,11 +4,11 @@ Historical documentation only. Versions, release links and upstream community li
 
 This repository is an **unofficial fork** of [lelouchcodes11/cs3d](https://github.com/lelouchcodes11/cs3d), built on CloudStream. It is not an official CloudStream/cs3d release or an upstream-endorsed project. Report fork-specific issues here, not to upstream. Community, donation and other upstream links retained below belong to the original project.
 
-## Eimon account Continue Watching
+## Provider-owned account Continue Watching
 
 - Account Continue Watching is an ordinary row **inside its owning extension/provider's Home page**, with normal row ordering/hiding and pagination—not a global account shelf. Provider and plugin ownership must both match.
 - Native cards keep progress/remaining time, Resume, Open title page and device-hide actions, plus automatic resume at the account's saved episode and timestamp. Local Continue Watching/history are unchanged.
-- **Only this account's compatible extensions (AniKoto / AniKoto Account from [the Eimon extension repository](https://github.com/mohamedyassine-benmiled/eimon-cloudstream-repo)) currently support this new feature.** Other extensions can still work normally, but do not gain account Continue Watching or remote auto-resume automatically.
+- Extensions that advertise the required account-list and resume capabilities can use this feature. Other extensions continue to work normally without account Continue Watching or remote auto-resume.
 - Login, episode matching and optional progress uploads remain in the extension. Native player-progress reporting is not added by this update.
 
 ### Cloud series-page progress (1.0.6-eimon + AniKoto v3)
