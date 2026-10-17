@@ -11,9 +11,9 @@ This repository is an **unofficial fork** of [lelouchcodes11/cs3d](https://githu
 - Extensions that advertise the required account-list and resume capabilities can use this feature. Other extensions continue to work normally without account Continue Watching or remote auto-resume.
 - Login, episode matching and optional progress uploads remain in the extension. Native player-progress reporting is not added by this update.
 
-### Cloud series-page progress (1.0.6-eimon + AniKoto v3)
+### Cloud series-page progress (1.0.6-eimon + a capability-compatible extension)
 
-AniKoto's saved cloud episode drives the series page's progress and built-in Resume action. Earlier episodes in the same season/audio edition are inferred watched; future episodes follow the existing Show/Hide spoilers toggle. This is a display overlay, not an import into local history. **Watching – New Episodes** gains native cards that start the newest eligible episode in the saved audio edition at **00:00**, never at the previous episode's timestamp. Opening rows/pages does not advance cloud progress. Stock/older apps keep the extension's ordinary row; older adapters remain supported by this fork.
+The extension's saved cloud episode drives the series page's progress and built-in Resume action. Earlier episodes in the same season/audio edition are inferred watched; future episodes follow the existing Show/Hide spoilers toggle. This is a display overlay, not an import into local history. **Watching – New Episodes** gains native cards that start the newest eligible episode in the saved audio edition at **00:00**, never at the previous episode's timestamp. Opening rows/pages does not advance cloud progress. Stock/older apps keep the extension's ordinary row; older adapters remain supported by this fork.
 
 ## Windows touchscreen input
 

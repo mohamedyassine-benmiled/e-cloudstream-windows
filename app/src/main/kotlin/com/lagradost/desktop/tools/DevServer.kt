@@ -603,7 +603,8 @@ object DevServer {
                             val uri = runCatching { java.net.URI(item.detailUrl) }.getOrNull()
                             mapOf("title" to item.title, "episode" to item.episode.number, "audio" to item.episode.audio,
                                 "positionMs" to item.progress?.positionMs, "durationMs" to item.progress?.durationMs,
-                                "detailUrl" to uri?.takeIf { it.host == "anikototv.to" }?.let { "https://${it.host}${it.rawPath}" })
+                                "detailUrl" to uri?.takeIf { it.scheme == "https" && !it.host.isNullOrBlank() }
+                                    ?.let { "https://${it.host}${it.rawPath.orEmpty()}" })
                         })
                 }))
                 onEdt {
@@ -616,7 +617,8 @@ object DevServer {
             "/cloud-open" -> {
                 val shelves = if (q["kind"] == "new") com.lagradost.desktop.resume.NativeResumeExtras.shelves.value
                     else com.lagradost.desktop.resume.NativeContinueWatching.shelves.value
-                val card = shelves.filter { it.owner.providerId == (q["api"] ?: "AniKoto") }
+                val requestedProvider = q["api"]
+                val card = shelves.filter { requestedProvider.isNullOrBlank() || it.owner.providerId == requestedProvider }
                     .flatMap { it.cards }.getOrNull(q["index"]?.toIntOrNull() ?: 0) ?: return ok(ex, "no matching cloud card")
                 require(com.lagradost.desktop.resume.NativeContinueWatching.isCurrent(card.request))
                 onEdt {
