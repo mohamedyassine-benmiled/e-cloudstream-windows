@@ -507,8 +507,10 @@ private fun DetailsContent(vm: ResultViewModel2, sync: SyncViewModel, route: Rou
                             val packs = shownEpisodes.filter { isSeasonPack(it) }
                             val rows = real.chunked(columns)
                             // spoilers: episodes up to current episode stay open; unviewed episodes after current episode are covered
-                            val currentEpIdx = real.indexOfLast { isWatched(it) || it.position > 0 }.coerceAtLeast(0)
-                            val openIds = if (!hideSpoilers) null else real.filterIndexed { i, ep -> i <= currentEpIdx || isWatched(ep) || ep.position > 0 }.map { it.id }.toSet()
+                            val currentEpIdx = real.indexOfLast { isWatched(it) || it.position > 0 }.coerceAtLeast(if (vm.hasCloudProgress()) -1 else 0)
+                            val openIds = if (!hideSpoilers) null else real.filterIndexed { i, ep ->
+                                vm.cloudEpisodeIsRevealed(ep) ?: (i <= currentEpIdx || isWatched(ep) || ep.position > 0)
+                            }.map { it.id }.toSet()
                             items(rows.size, key = { i -> "eprow-" + (rows[i].firstOrNull()?.id ?: i) + "-" + i }) { i ->
                                 Row(Modifier.fillMaxWidth().padding(horizontal = gutter).padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                                     rows[i].forEach { ep -> Box(Modifier.weight(1f)) { EpisodeCard(vm, ep, d.backgroundPosterUrl ?: d.posterImage, d.posterHeaders, spoiler = openIds != null && ep.id !in openIds) } }

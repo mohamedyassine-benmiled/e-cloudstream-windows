@@ -6,6 +6,10 @@ The data contract, registry, native account cards and typed exact resume are int
 
 ## Provider-owned Home rows
 
+### Unreleased: cloud title progress and Watching – New Episodes
+
+The optional `TITLE_PROGRESS` / `NEW_EPISODES` capabilities add an in-memory watched frontier to series details and a second ordinary provider-owned native row. Earlier episodes in the same season/audio edition are inferred watched, the saved episode uses its cloud timestamp, and future episodes use the existing spoiler toggle. The new-episodes row starts the newest eligible same-edition episode at zero after fresh validation. Fetching either feature never writes inferred local history. Old extension adapters and ordinary providers keep their existing behaviour; matching updated extension support is required. Signed-in acceptance tests are pending.
+
 Account shelves now enter the ordinary provider Home-page row pipeline rather than a separate global block. Both the provider name and plugin identity must match the selected source. The standard row ordering/hiding and pagination apply; progress, remaining time, resume/open-title/device-hide actions, and sign-in/retry notices remain available. Local Continue Watching/history are unchanged. Remote rows do not replace provider loading/failure states or appear inside another plugin with the same provider name.
 
 ## Minimal host integration policy

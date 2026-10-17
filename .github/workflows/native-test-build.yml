@@ -113,6 +113,8 @@ jobs:
           @'
           Unofficial Eimon fork — not an official CloudStream/cs3d release.
 
+          Cloud title progress and native Watching – New Episodes require AniKoto v3. The series page projects the saved account position, treats earlier same-season/same-edition episodes as watched, and uses the existing spoiler toggle without importing cloud records into local history. New Episodes opens the newest eligible episode in the saved audio edition at zero after fresh validation. Stock/older hosts and older extension adapters retain their fallback behaviour.
+
           Windows touchscreen support: vertical page/list swipes, horizontal poster-shelf swipes, tap-versus-drag handling, and touch-aware player controls. Settings → Appearance → Touchscreen swipes offers Auto / On / Off; On is a fallback for drivers without touch-source detection and also enables mouse drag-to-scroll. Maximized window controls and the navigation dock remain accessible during touch use. Single-finger support; physical touchscreen acceptance testing remains necessary.
 
           Account Continue Watching is now an ordinary row inside its owning provider, retaining progress/remaining time, pagination and native episode/timestamp resume. Only the maintainer's compatible AniKoto / AniKoto Account extensions currently support this feature; other extensions are unchanged. No extension update is needed for row placement.

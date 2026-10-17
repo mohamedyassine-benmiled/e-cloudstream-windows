@@ -54,6 +54,9 @@ class ResumeProviderRegistry(
             "Unsupported native resume API version"
         }
         require(ResumeCapability.READ_LIST in capabilities)
+        require(capabilities.none { it == ResumeCapability.TITLE_PROGRESS || it == ResumeCapability.NEW_EPISODES } || source is ContinueWatchingExtras) {
+            "Extra capabilities require the extras source interface"
+        }
         require(host.supports(source.apiVersion, setOf(ResumeCapability.READ_LIST))) { "Native resume UI is not installed" }
         val record = Record(source, capabilities.intersect(host.capabilities))
         while (true) {
@@ -91,6 +94,25 @@ class ResumeProviderRegistry(
         call(owner, ResumeCapability.READ_LIST) { source ->
             require(profileId.isNotBlank())
             source.getAccountId(profileId).also { require(it == null || it.isNotBlank()) }
+        }
+
+    suspend fun getTitleProgress(owner: ResumeSourceKey, context: ResumeContext, detailUrl: String): ResumeCallResult<RemoteResumeEntry?> =
+        call(owner, ResumeCapability.TITLE_PROGRESS) { source ->
+            require(detailUrl.isNotBlank())
+            (source as? ContinueWatchingExtras ?: error("Missing extras adapter"))
+                .getTitleProgress(context, detailUrl)?.also {
+                    require(it.accountId == context.accountId && it.detailUrl.trimEnd('/') == detailUrl.trimEnd('/'))
+                }
+        }
+
+    suspend fun getNewEpisodes(owner: ResumeSourceKey, request: ResumeListRequest): ResumeCallResult<ResumeListPage> =
+        call(owner, ResumeCapability.NEW_EPISODES) { source ->
+            val page = (source as? ContinueWatchingExtras ?: error("Missing extras adapter")).getNewEpisodes(request)
+            require(page.entries.size <= request.limit)
+            require(page.entries.all { it.accountId == request.context.accountId && it.progress?.positionMs == 0L })
+            require(page.entries.map { it.itemId }.distinct().size == page.entries.size)
+            require(page.nextCursor == null || page.nextCursor != request.cursor)
+            page.copy(entries = page.entries.toList())
         }
 
     suspend fun resolveResume(owner: ResumeSourceKey, request: ResumeResolveRequest): ResumeCallResult<ResolvedResume?> =

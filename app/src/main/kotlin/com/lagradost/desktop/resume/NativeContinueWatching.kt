@@ -79,6 +79,8 @@ data class NativeResumeShelf(
     val nextCursor: String? = null,
     val state: ResumeListState = ResumeListState.READY,
     val error: ResumeFailure? = null,
+    val newEpisodes: Boolean = false,
+    val consumedCursors: Set<String> = emptySet(),
 )
 
 /** Remote cache is independent of local history; only explicit Hide writes a separate preference. */
@@ -162,17 +164,19 @@ object NativeContinueWatching {
     private fun hideKey(card: RemoteResumeCard): String {
         val r = card.request
         // Length-prefix fields to avoid ambiguous concatenations or separator collisions.
-        val identity = listOf(r.owner.pluginId, r.owner.providerId, r.context.accountId, r.item.itemId)
+        val identity = (listOf(r.owner.pluginId, r.owner.providerId, r.context.accountId, r.item.itemId) +
+            if (r.item.resumeToken.startsWith("latest-v1:")) listOf("new", r.item.episode.episodeId) else emptyList())
             .joinToString("") { "${it.length}:$it" }
         val hash = MessageDigest.getInstance("SHA-256").digest(identity.toByteArray()).joinToString("") { "%02x".format(it) }
         return "${r.context.profileId}/native_resume_hidden/$hash"
     }
 
-    private fun hidden(card: RemoteResumeCard) = getKey<Boolean>(hideKey(card), false) == true
+    internal fun hidden(card: RemoteResumeCard) = getKey<Boolean>(hideKey(card), false) == true
 
     fun hide(card: RemoteResumeCard) {
         if (card.request.context.profileId != DataStoreHelper.currentAccount) return
         setKey(hideKey(card), true)
+        NativeResumeExtras.hide(card)
         state.update { shelves -> shelves.map { shelf -> shelf.copy(cards = shelf.cards.filterNot { it.request == card.request }) } }
     }
 

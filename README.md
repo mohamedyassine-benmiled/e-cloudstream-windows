@@ -9,6 +9,10 @@ This repository is an **unofficial fork** of [lelouchcodes11/cs3d](https://githu
 - **Only this account's compatible extensions (AniKoto / AniKoto Account from [the Eimon extension repository](https://github.com/mohamedyassine-benmiled/eimon-cloudstream-repo)) currently support this new feature.** Other extensions can still work normally, but do not gain account Continue Watching or remote auto-resume automatically.
 - Login, episode matching and optional progress uploads remain in the extension. Native player-progress reporting is not added by this update.
 
+### Cloud series-page progress (1.0.6-eimon + AniKoto v3)
+
+AniKoto's saved cloud episode drives the series page's progress and built-in Resume action. Earlier episodes in the same season/audio edition are inferred watched; future episodes follow the existing Show/Hide spoilers toggle. This is a display overlay, not an import into local history. **Watching – New Episodes** gains native cards that start the newest eligible episode in the saved audio edition at **00:00**, never at the previous episode's timestamp. Opening rows/pages does not advance cloud progress. Stock/older apps keep the extension's ordinary row; older adapters remain supported by this fork.
+
 ## Windows touchscreen input
 
 In **Settings → Appearance → Touchscreen swipes**, use **Auto** for Windows finger-input detection. Swipe vertically through pages, settings and episode/dialog lists, or horizontally through poster shelves. A swipe cancels the card's click; a tap still opens it. Normal mouse-wheel and keyboard navigation remain available. Native touch pointers keep Compose's own scrolling, while mouse-promoted Windows touch gains drag scrolling and release momentum. While touch is active, the maximized title bar and navigation dock stay accessible without hovering.

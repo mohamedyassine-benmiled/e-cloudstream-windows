@@ -589,6 +589,42 @@ object DevServer {
                 }
                 ok(ex, sb.toString())
             }
+            "/cloud-state" -> {
+                val bridge = com.lagradost.cloudstream3.resume.NativeResumeBridge
+                val json = org.json.JSONObject()
+                json.put("capabilities", org.json.JSONArray(bridge.getCapabilities().capabilities.map { it.name }))
+                val shelves = com.lagradost.desktop.resume.NativeContinueWatching.shelves.value +
+                    com.lagradost.desktop.resume.NativeResumeExtras.shelves.value
+                json.put("shelves", org.json.JSONArray(shelves.map { shelf ->
+                    mapOf("provider" to shelf.owner.providerId, "newEpisodes" to shelf.newEpisodes,
+                        "state" to shelf.state.name, "error" to shelf.error?.name, "hasNext" to (shelf.nextCursor != null),
+                        "cards" to shelf.cards.map { card ->
+                            val item = card.request.item
+                            val uri = runCatching { java.net.URI(item.detailUrl) }.getOrNull()
+                            mapOf("title" to item.title, "episode" to item.episode.number, "audio" to item.episode.audio,
+                                "positionMs" to item.progress?.positionMs, "durationMs" to item.progress?.durationMs,
+                                "detailUrl" to uri?.takeIf { it.host == "anikototv.to" }?.let { "https://${it.host}${it.rawPath}" })
+                        })
+                }))
+                onEdt {
+                    val entry = com.lagradost.desktop.core.Navigator.current
+                    if (entry.route is com.lagradost.desktop.core.Route.Details)
+                        json.put("details", org.json.JSONObject(entry.vms.get<com.lagradost.cloudstream3.ui.result.ResultViewModel2>().cloudProgressDiagnostics()))
+                }
+                respond(ex, 200, "application/json", json.toString().toByteArray())
+            }
+            "/cloud-open" -> {
+                val shelves = if (q["kind"] == "new") com.lagradost.desktop.resume.NativeResumeExtras.shelves.value
+                    else com.lagradost.desktop.resume.NativeContinueWatching.shelves.value
+                val card = shelves.filter { it.owner.providerId == (q["api"] ?: "AniKoto") }
+                    .flatMap { it.cards }.getOrNull(q["index"]?.toIntOrNull() ?: 0) ?: return ok(ex, "no matching cloud card")
+                require(com.lagradost.desktop.resume.NativeContinueWatching.isCurrent(card.request))
+                onEdt {
+                    if (q["play"] == "1") com.lagradost.desktop.core.Navigator.resumeRemote(card)
+                    else com.lagradost.desktop.core.Navigator.openDetails(card)
+                }
+                ok(ex)
+            }
             "/plugins" -> {
                 val sb = StringBuilder()
                 for ((path, p) in com.lagradost.cloudstream3.plugins.PluginManager.plugins.toMap()) {

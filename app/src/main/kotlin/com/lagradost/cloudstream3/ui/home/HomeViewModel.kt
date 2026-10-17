@@ -250,6 +250,9 @@ class HomeViewModel : ViewModel() {
     private val nativeShelves = MutableLiveData(NativeContinueWatching.shelves.value).also { output ->
         viewModelScope.launchSafe { NativeContinueWatching.shelves.collect { output.postValue(it) } }
     }
+    private val nativeNewEpisodes = MutableLiveData(com.lagradost.desktop.resume.NativeResumeExtras.shelves.value).also { output ->
+        viewModelScope.launchSafe { com.lagradost.desktop.resume.NativeResumeExtras.shelves.collect { output.postValue(it) } }
+    }
     val page: LiveData<Resource<Map<String, ExpandableHomepageList>>> =
         MediatorLiveData<Resource<Map<String, ExpandableHomepageList>>>().apply {
             fun publish() {
@@ -260,15 +263,18 @@ class HomeViewModel : ViewModel() {
             }
             addSource(_page) { publish() }
             addSource(nativeShelves) { publish() }
+            addSource(nativeNewEpisodes) { publish() }
             addSource(_apiName) { publish() }
         }
 
     private fun visibleNativeShelves(): List<NativeResumeShelf> {
         val provider = getApiFromNameNull(_apiName.value) ?: return emptyList()
-        return nativeShelves.value.orEmpty().filter { it.owner.belongsToHomeProvider(provider.name, provider.sourcePlugin) }
+        return (nativeShelves.value.orEmpty() + nativeNewEpisodes.value.orEmpty())
+            .filter { it.owner.belongsToHomeProvider(provider.name, provider.sourcePlugin) }
     }
 
-    private fun nativeShelfName(shelf: NativeResumeShelf): String = "Continue watching — ${shelf.owner.providerId}"
+    private fun nativeShelfName(shelf: NativeResumeShelf): String =
+        if (shelf.newEpisodes) "Watching – New Episodes — ${shelf.owner.providerId}" else "Continue watching — ${shelf.owner.providerId}"
 
     private fun nativeHomeList(shelf: NativeResumeShelf): ExpandableHomepageList? {
         val signIn = shelf.state != ResumeListState.READY
@@ -286,8 +292,9 @@ class HomeViewModel : ViewModel() {
 
     suspend fun expandAndReturn(name: String): ExpandableHomepageList? {
         visibleNativeShelves().firstOrNull { nativeShelfName(it) == name }?.let { shelf ->
-            NativeContinueWatching.loadMore(shelf.owner)
-            return visibleNativeShelves().firstOrNull { it.owner == shelf.owner }?.let(::nativeHomeList)
+            if (shelf.newEpisodes) com.lagradost.desktop.resume.NativeResumeExtras.loadMore(shelf.owner)
+            else NativeContinueWatching.loadMore(shelf.owner)
+            return visibleNativeShelves().firstOrNull { it.owner == shelf.owner && it.newEpisodes == shelf.newEpisodes }?.let(::nativeHomeList)
         }
         if (lock.contains(name)) return null
         lock += name

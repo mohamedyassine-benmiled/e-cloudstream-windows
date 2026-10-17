@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.update
 /** Additive, optional API. Stock hosts need not contain any classes from this package. */
 const val NATIVE_RESUME_API_VERSION = 1
 
-enum class ResumeCapability { READ_LIST, RESOLVE_RESUME, REPORT_PROGRESS, REMOVE_REMOTE_ITEM }
+enum class ResumeCapability { READ_LIST, RESOLVE_RESUME, REPORT_PROGRESS, REMOVE_REMOTE_ITEM, TITLE_PROGRESS, NEW_EPISODES }
 
 data class ResumeHostCapabilities(
     val apiVersion: Int,
@@ -129,6 +129,12 @@ interface ContinueWatchingSource {
     suspend fun reportProgress(event: ResumePlaybackEvent): ResumeProgressReceipt = ResumeProgressReceipt.UNSUPPORTED
 }
 
+/** Optional extension of v1: old adapters and all v1 data-class constructors remain binary compatible. */
+interface ContinueWatchingExtras : ContinueWatchingSource {
+    suspend fun getTitleProgress(context: ResumeContext, detailUrl: String): RemoteResumeEntry?
+    suspend fun getNewEpisodes(request: ResumeListRequest): ResumeListPage
+}
+
 /**
  * The contract is present, but the host must not promise native UI/player support until wired in.
  * Extensions must check supports(), not merely Class.forName(), before disabling their fallback.
@@ -138,11 +144,11 @@ object NativeResumeBridge {
     private val revision = MutableStateFlow(0L)
     val changes = revision.asStateFlow()
     private val registry = ResumeProviderRegistry(ResumeHostCapabilities(NATIVE_RESUME_API_VERSION,
-        setOf(ResumeCapability.READ_LIST, ResumeCapability.RESOLVE_RESUME)))
+        setOf(ResumeCapability.READ_LIST, ResumeCapability.RESOLVE_RESUME, ResumeCapability.TITLE_PROGRESS, ResumeCapability.NEW_EPISODES)))
 
     /** Host startup only. Call only where native cards and typed resume navigation are installed. */
     fun installHostUi() {
-        enabled.value = setOf(ResumeCapability.READ_LIST, ResumeCapability.RESOLVE_RESUME)
+        enabled.value = setOf(ResumeCapability.READ_LIST, ResumeCapability.RESOLVE_RESUME, ResumeCapability.TITLE_PROGRESS, ResumeCapability.NEW_EPISODES)
     }
 
     @JvmStatic
@@ -166,4 +172,6 @@ object NativeResumeBridge {
     suspend fun getAccountId(owner: ResumeSourceKey, profileId: String) = registry.getAccountId(owner, profileId)
     suspend fun getContinueWatching(owner: ResumeSourceKey, request: ResumeListRequest) = registry.getContinueWatching(owner, request)
     suspend fun resolveResume(owner: ResumeSourceKey, request: ResumeResolveRequest) = registry.resolveResume(owner, request)
+    suspend fun getTitleProgress(owner: ResumeSourceKey, context: ResumeContext, detailUrl: String) = registry.getTitleProgress(owner, context, detailUrl)
+    suspend fun getNewEpisodes(owner: ResumeSourceKey, request: ResumeListRequest) = registry.getNewEpisodes(owner, request)
 }
