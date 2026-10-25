@@ -35,8 +35,8 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Run resume and touchscreen tests
-        run: ./gradlew :app:test --tests "com.lagradost.desktop.resume.*" --tests "com.lagradost.desktop.ui.fluent.TouchScroll*" :library:jvmTest --tests "com.lagradost.cloudstream3.resume.*" --no-daemon
+      - name: Run Windows compatibility, player, resume and updater tests
+        run: ./gradlew :android:test :app:test :library:jvmTest --tests "com.lagradost.cloudstream3.resume.*" --no-daemon
 
       - name: Build portable ZIP
         run: ./gradlew :app:portableZip --no-daemon
@@ -100,6 +100,7 @@ jobs:
           name: native-test-reports
           path: |
             app/build/reports/tests/
+            android/build/reports/tests/
             library/build/reports/tests/
 
       - name: Publish Eimon GitHub prerelease
@@ -112,6 +113,10 @@ jobs:
           $tag = "v$ver.$env:GITHUB_RUN_NUMBER"
           @'
           e-cloudstream — an independent, unofficial CloudStream/cs3d fork directed by @mohamedyassine-benmiled.
+
+          New in 1.0.8: touch double-tap seeking on the video (left half -10 seconds, right half +10 seconds), retaining mouse double-click fullscreen. Touch singles still toggle playback after the double-tap interval. Windows WebView cookies are refreshed on Android API reads, encrypted flushing is functional, incomplete/stale snapshots are rejected, and live browser-default user agents are reported where available. Live AniKoto session retention and physical touchscreen acceptance still need user testing; these are not claims that server-side sign-outs are proven fixed.
+
+          Includes upstream main through b9085f8 (upstream 1.0.7), preserving e-cloudstream branding, fork-owned updates and account/cloud capabilities. Android and extension sources/binaries are not changed by this Windows release. Existing installed data paths and upgrade identities remain unchanged.
 
           Cloud title progress and native Watching – New Episodes require an extension advertising the corresponding host capabilities. The series page projects the saved account position, treats earlier same-season/same-edition episodes as watched, and uses the existing spoiler toggle without importing cloud records into local history. New Episodes opens the newest eligible episode in the saved audio edition at zero after fresh validation. Stock/older hosts and older extension adapters retain their fallback behaviour.
 

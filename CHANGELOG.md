@@ -1,5 +1,12 @@
 # Changelog
 
+## e-cloudstream 1.0.8
+
+- Touch double-tap seeking: left half rewinds 10 seconds, right half skips 10 seconds, using the existing seek feedback. Mouse double-click still toggles fullscreen. Touch singles retain play/pause after the double-tap interval; swipes, controls and holds do not trigger seeking.
+- Windows WebView compatibility: fresh cookie reads, encrypted cookie flushing, incomplete/stale snapshot protection and observed browser-default user-agent reporting. Android and extension sources are unchanged. These changes do not establish the cause of AniKoto server-side sign-outs; fresh-login, idle and restart testing remains necessary.
+- Merged upstream main through `b9085f8`, retaining fork branding, fork-owned updates, cloud progress and touchscreen support. See the inherited 1.0.7 notes below for upstream improvements.
+- Automated validation includes player gesture, WebView-cookie, native-resume and updater regressions. Physical touchscreen and live session-retention acceptance remain separate from unit tests.
+
 ## 1.0.7
 
 **Netflix interface, Settings, blocked-DNS sources, MovieBox**
