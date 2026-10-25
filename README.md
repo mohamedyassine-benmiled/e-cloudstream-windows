@@ -24,6 +24,7 @@ Automatic/manual app updates use **this fork's release repository**, never cs3d'
 - Cloud series-page progress: earlier same-season/same-audio episodes are inferred watched in memory, not imported into local history; Resume uses the saved timestamp.
 - Native **Watching – New Episodes**: launches the latest eligible episode in the saved audio edition at **00:00** after revalidation.
 - Cloud-aware spoiler handling and Windows touchscreen swipe/player controls.
+- Touch double-tap seeking on the video: left half rewinds 10 seconds, right half skips 10 seconds. Mouse double-click keeps fullscreen behaviour.
 
 Account features are available to extensions that advertise the required host capabilities, such as remote-list reading, exact resume, cloud title progress, and latest-episode discovery. Other extensions continue to work normally without these optional features. Website login, episode matching and optional uploads remain extension responsibilities. Opening details/rows does not advance website progress. Existing optional uploads remain position-based, not immediate pause/exit reporting, and have no durable offline queue.
 

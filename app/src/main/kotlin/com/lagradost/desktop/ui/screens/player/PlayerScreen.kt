@@ -192,7 +192,7 @@ fun PlayerScreen(entry: Entry, route: Route.Player) {
  * until something was clicked.
  */
 /** How long a press on the picture, or Space, is held before the picture plays at 2x */
-private const val HOLD_BOOST_MS = 350L
+internal const val HOLD_BOOST_MS = 350L
 
 object PlayerKeys {
     @Volatile
@@ -447,8 +447,8 @@ private fun PlayerContent(s: PlayerSession) {
     }
 
     // the native video player (beta): mpv's GPU window below, the controls in a transparent window above it
-    // a click pauses / plays at once (detectTapGestures held every single click ~300 ms to rule out a double click, which felt like a lag);
-    // the second click of a double click puts the play state back and switches fullscreen, as in a browser's video player
+    // A mouse click pauses / plays at once; mouse doubles restore the play state and switch fullscreen.
+    // Touch singles wait for the double-tap interval; touch doubles seek left/right without pausing or switching fullscreen.
     // Held down on the picture (a finger, or the left mouse button) for 0.35 s: the picture plays at 2x for as long as it is held, and letting go is not a click.
     // Not while paused (a press that long on a paused picture is a click that plays), not in the small window (a press there drags it), not on a button
     // (a button takes the press), and not when the pointer moves (a swipe).
@@ -482,7 +482,16 @@ private fun PlayerContent(s: PlayerSession) {
             }
         }
     }
-    val tapGestures = holdBoost.pointerInput(Unit) {
+    val touchTaps = Modifier.playerTouchTaps(
+        enabled = {
+            !com.lagradost.desktop.platform.WinChrome.pip && !s.closing && s.loadingText == null && s.failure == null &&
+                menuPage == null && !showEpisodes && com.lagradost.desktop.ui.fluent.Overlays.dialogs.isEmpty()
+        },
+        suppressTap = { holdSuppressesClick[0].also { holdSuppressesClick[0] = false } },
+        onSingleTap = { s.togglePlay() },
+        onSeek = { if (!s.live) s.seekBy(it) },
+    )
+    val tapGestures = touchTaps.then(holdBoost).pointerInput(Unit) {
         awaitPointerEventScope {
             var lastClick = 0L
             var playingBefore = false
@@ -491,7 +500,12 @@ private fun PlayerContent(s: PlayerSession) {
                 val e = awaitPointerEvent()
                 val change = e.changes.firstOrNull() ?: continue
                 when {
-                    e.type == PointerEventType.Press -> downAt = if (e.primaryContactPressed) change.position else null
+                    e.type == PointerEventType.Press -> {
+                        val touch = !com.lagradost.desktop.platform.WinChrome.pip &&
+                            isPlayerTouch(change.type, com.lagradost.desktop.platform.WindowsTouch.lastPrimaryWasTouch)
+                        if (touch) lastClick = 0L // a mouse click and a finger tap are never one double click
+                        downAt = if (e.primaryContactPressed && !touch) change.position else null
+                    }
                     e.type == PointerEventType.Release -> {
                         val start = downAt ?: continue
                         downAt = null
@@ -664,7 +678,7 @@ private fun PlayerContent(s: PlayerSession) {
             val dialogsOpen = com.lagradost.desktop.ui.fluent.Overlays.dialogs.isNotEmpty() || s.typing
             NativeOverlayWindow(focusable = dialogsOpen) {
                 Box(Modifier.fillMaxSize().then(pointerWatch(true))) {
-                    // the picture's layer under the controls (taps play and pause, a double tap is full screen); nearly invisible, not transparent:
+                    // The picture's layer: touch doubles seek; mouse doubles toggle fullscreen. Nearly invisible, not transparent:
                     // a fully transparent pixel of a window lets the pointer through to the video below
                     Box(
                         Modifier.fillMaxSize().background(Color(0x01000000))
