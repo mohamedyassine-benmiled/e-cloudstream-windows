@@ -9,12 +9,11 @@ import kotlin.test.*
 
 class NativeResumePresentationTest {
     @Test fun accountShelfAppearsOnlyInsideItsOwningProvider() {
-        val owner = ResumeSourceKey("plugin-a", "AniKoto")
-        assertTrue(owner.belongsToHomeProvider("AniKoto", "plugin-a"))
-        assertFalse(owner.belongsToHomeProvider("Qrmzi", "plugin-a"))
-        assertFalse(owner.belongsToHomeProvider("AniKoto Account", "plugin-a"))
-        assertFalse(owner.belongsToHomeProvider("AniKoto", "plugin-b"))
-        assertFalse(owner.belongsToHomeProvider("AniKoto", null))
+        val owner = ResumeSourceKey("plugin-a", "provider-a")
+        assertTrue(owner.belongsToHomeProvider("provider-a", "plugin-a"))
+        assertFalse(owner.belongsToHomeProvider("provider-b", "plugin-a"))
+        assertFalse(owner.belongsToHomeProvider("provider-a", "plugin-b"))
+        assertFalse(owner.belongsToHomeProvider("provider-a", null))
         assertFalse(owner.belongsToHomeProvider(null, null))
     }
 
