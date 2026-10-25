@@ -68,11 +68,20 @@ sealed interface Route {
     data class Search(val query: String? = null, val nonce: Long = System.nanoTime(), val only: String? = null) : Route
     data object Library : Route
 
+    /** New episodes of followed titles and what airs this week */
+    data object Schedule : Route
+
+    /** Watch time, genres, studios and the rest of what was watched */
+    data object Stats : Route
+
     /** What was started and not finished: the full list behind Continue watching */
     data object History : Route
 
     /** A person from TMDB: photo, biography and the films and series they are in */
     data class Person(val id: Int, val name: String, val image: String?) : Route
+
+    /** The whole cast and crew of a title (TMDB id), with its seasons for the season picker */
+    data class FullCast(val title: String, val tmdbId: Int, val isMovie: Boolean, val seasons: List<Int> = emptyList(), val initialSeason: Int? = null) : Route
     data object Downloads : Route
     data object Extensions : Route
     data class Settings(val page: String? = null) : Route
@@ -107,7 +116,7 @@ sealed interface Route {
 }
 
 enum class Tab(val route: Route) {
-    Home(Route.Home), Search(Route.Search()), Library(Route.Library), Downloads(Route.Downloads),
+    Home(Route.Home), Search(Route.Search()), Library(Route.Library), Schedule(Route.Schedule), Downloads(Route.Downloads),
     Extensions(Route.Extensions), Settings(Route.Settings())
 }
 
@@ -115,6 +124,8 @@ private fun Route.tab(): Tab? = when (this) {
     Route.Home -> Tab.Home
     is Route.Search -> Tab.Search
     Route.Library -> Tab.Library
+    Route.Schedule -> Tab.Schedule
+    Route.Stats -> Tab.Library
     Route.Downloads -> Tab.Downloads
     // Extensions live inside Settings now: the Settings item of the navigation stays lit on that page
     Route.Extensions -> Tab.Settings

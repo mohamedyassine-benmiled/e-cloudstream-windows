@@ -23,8 +23,8 @@ import kotlin.math.abs
 
 enum class TouchSwipes(val label: String) { Auto("Auto"), On("On"), Off("Off") }
 
-internal fun useMouseSwipe(mode: TouchSwipes, promotedTouch: Boolean): Boolean =
-    mode == TouchSwipes.On || (mode == TouchSwipes.Auto && promotedTouch)
+internal fun useMouseSwipe(mode: TouchSwipes, promotedTouch: Boolean, mouseDrag: Boolean = false): Boolean =
+    mode == TouchSwipes.On || (mode == TouchSwipes.Auto && promotedTouch) || (mouseDrag && !promotedTouch)
 
 /** Null below slop; otherwise lock to the dominant axis so a shelf does not steal vertical page swipes. */
 internal fun swipeAxis(x: Float, y: Float, slop: Float): Orientation? = when {
@@ -35,18 +35,18 @@ internal fun swipeAxis(x: Float, y: Float, slop: Float): Orientation? = when {
 
 /** Compose already scrolls real touch pointers. This adds only Windows' mouse-promoted finger drags. */
 @Composable
-fun Modifier.touchScroll(state: ScrollableState, orientation: Orientation = Orientation.Vertical): Modifier {
+fun Modifier.touchScroll(state: ScrollableState, orientation: Orientation = Orientation.Vertical, mouseDrag: Boolean = false): Modifier {
     val mode = Appearance.touchSwipes
-    if (mode == TouchSwipes.Off) return this
+    if (mode == TouchSwipes.Off && !mouseDrag) return this
     val fling = ScrollableDefaults.flingBehavior()
-    return pointerInput(state, orientation, mode, fling) {
+    return pointerInput(state, orientation, mode, fling, mouseDrag) {
         coroutineScope {
             val jobs = this
             var scrolling: kotlinx.coroutines.Job? = null
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 if (down.type != PointerType.Mouse || !currentEvent.buttons.isPrimaryPressed ||
-                    !useMouseSwipe(mode, WindowsTouch.lastPrimaryWasTouch)) return@awaitEachGesture
+                    !useMouseSwipe(mode, WindowsTouch.lastPrimaryWasTouch, mouseDrag)) return@awaitEachGesture
                 scrolling?.cancel()
                 val tracker = VelocityTracker()
                 tracker.addPosition(down.uptimeMillis, down.position)

@@ -834,7 +834,7 @@ compose.desktop {
             packageVersion = desktopVersion
             description = "e-cloudstream for Windows"
             vendor = "mohamedyassine-benmiled"
-            modules("java.sql", "java.naming", "jdk.unsupported", "jdk.crypto.ec", "jdk.crypto.mscapi", "java.management", "jdk.management", "java.net.http", "jdk.accessibility", "jdk.httpserver", "jdk.localedata")
+            modules("java.sql", "java.naming", "jdk.unsupported", "jdk.crypto.ec", "jdk.crypto.mscapi", "java.management", "jdk.management", "java.net.http", "jdk.accessibility", "jdk.httpserver", "jdk.localedata", "jdk.charsets")
             windows {
                 iconFile.set(project.file("src/main/icons/icon.ico"))
                 menuGroup = "e-cloudstream"

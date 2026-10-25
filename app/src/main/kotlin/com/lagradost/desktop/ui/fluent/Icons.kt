@@ -69,6 +69,7 @@ object Icons {
     const val Rewind = "\uEB9E"
     const val FastForward = "\uEB9D"
     const val Subtitles = "\uE7F0"
+    const val Font = "\uE8D2"
     const val Audio = "\uE8D6"
     const val Speed = "\uEC4A"
     const val Aspect = ""
@@ -109,6 +110,9 @@ object Icons {
     const val BackToWindow = ""
     const val Cast =""
     const val Notification = ""
+    const val Bell = ""
+    const val Chart = ""
+    const val Thumbnail = ""
 }
 
 /** One glyph of [FluentFonts.icons] centred in a square of [size] */

@@ -1,5 +1,99 @@
 # Changelog
 
+## 1.0.6
+
+**Title pages**
+- **Cast & crew like Ayu's app**: a row of the cast and a row of the crew (directors, creators, writers, producers, each card tagged with the job), a season picker, *View all* and a full cast page with a search box. The photos are rectangles now.
+- **Details tab**: the facts in two columns (status, dates, runtime, age rating, country, language, seasons, rating, budget, revenue), logo tiles for studios and networks, and where it streams.
+- **Screenshots** open large; the arrow keys step through them and Esc closes. **Reviews** use the whole width.
+- **Trailers play in the app**: when the usual way fails, the stream is asked for the way YouTube's own phone app does, and every trailer address is tried before the browser is opened.
+- **Specials**: a season 0 says "Specials" instead of "No Season".
+- A title page that takes long (StreamPlay) says so after a few seconds and offers *Try again* and *Back*.
+
+**Player**
+- **Episode list**: season buttons, a range of 25 for long seasons, and an eye button that shows or hides the episodes ahead. Covered episodes keep their titles unless *Hide the titles as well* is on (that switch did nothing before).
+- The window with the controls is always put over the video, and the app writes it to its log, to help with the report of controls that were missing.
+
+**Windows and lists**
+- **Snap to halves and corners works**: the window can be made as small as 480 × 320 (it was 760 × 520, too big to snap on a 1080p screen at 150 %), and the top bar fits a narrow window.
+- **Catalog rows** can be held and dragged with the mouse, and glide a little after you let go.
+- **Right-click a title in a catalog**: it lifts to the middle with the library actions (add to library, favourites, play, open).
+- The **Installed** list of the extensions shows each extension's icon.
+
+**Cloudflare**
+- AnimePahe's Cloudflare window no longer comes up when the app starts with another extension on Home. A check window is only shown for the extension you are using.
+
+## 1.0.5
+
+**Your data cannot be wiped by a sync extension any more**
+- After an update some people found their extensions, repositories, search history and settings gone. The update itself does not touch your data (it lives in `%APPDATA%\CloudStream`); the cause is a sync extension (Ultima): when another device had deleted its copy once, the cloud keeps that "deleted" mark, and the next device that syncs deletes its own data to match, and passes the deletion on to the others. The app now stops it where the data is stored: the extension list and the repositories cannot be removed by an extension, and a bulk deletion (40 % of a file or at least 25 keys within two minutes, in one go or one key at a time) is held back and what had already gone is put back, while new data from the sync is still merged in. A notice says "A sync extension tried to delete ... They were kept", and `logs/app.log` names the caller. Your own "Clear history", "Delete profile", "Clear search history" and restoring a backup still work as before.
+- One more backup of your settings, history and extension list is taken right before an update installs.
+- The app no longer lets its preference file disappear for an instant while saving (the sync extension took that for a deleted profile and wiped the extension list, here and on the phone). Extensions whose files are on the disk but missing from the installed list are taken back into it, when a repository page is opened and after the start.
+
+**New player look**
+- **Controls and seek bar**: the controls are flat on a soft shade. The seek bar runs the full width with the time played at its left end and the time left at its right end (a click switches to the total length; when the video ends is in its tooltip), a taller grab area, and a line that grows under the pointer. Under it one row: the transport at the left (previous, back 10 s, a larger play button, forward 10 s, next) with the volume beside it, the tools at the right (Subtitles and Sources with their names when the window is wide, then speed, episodes, picture in picture, settings, full screen). Back and Video & Audio at the top are flat too.
+- **Readable on any scene**: the shades behind the controls fade softly (no grey fog over a white title card), the texts have a soft shadow, the seek bar's track does not vanish on white. The picture size (1080p) is a small badge beside the source name.
+- **Player menu**: the chosen row has a soft fill and an accent check mark, rounder card and rows, the Style and Encoding rows have their own icons; the settings scroll, while "Keyboard shortcuts" and "Open in VLC / mpv / Browser" stay at the bottom, always visible.
+- **Seek preview**: the picture of the scene sits just above the bar with the time over its lower edge, and the black bars of letterboxed films are cut off.
+- **Controls stay while a mouse button is held** (dragging the seek bar or the volume), and Settings > Appearance > "Hide the player controls" lets them stay 2, 4, 8 or 15 seconds, or always.
+- **Keys and media keys follow the focus**: clicking the picture of a native video gives the keyboard to CloudStream (Space no longer pauses the browser's video next to it); the media keys go to the player while a CloudStream window is in front and are given back to other programs when the player page is left.
+- **Play / pause**: the button and the on-screen mark follow what the press did (also while buffering, also with quick presses).
+- **Picture in picture**: 10 s back / forward buttons around play; the small window and its controls move and resize in one step.
+- **Episode list**: a click on the picture closes it (and does not pause the video).
+- **Black line along the right edge** of a maximised or full screen video (150 % scale) is gone; after a resize or snap the picture is put back to the window's size.
+- Smoother motion: play/pause morphs, buttons pop when their icon changes, menus grow open, the progress bar glides. Borders are strokes one dp wide and buttons no longer clip their own fill twice, so no more dotted or stepped edges.
+
+**Profile pictures like Netflix's**
+- 43 drawn characters on a flat colour of your choice (10 colours): 20 of our own (Happy, Wink, Cool, Silly, Starstruck, In love, Sleepy, Cat, Fox, Panda, Bear, Bunny, Owl, Penguin, Frog, Robot, Alien, Ghost, Monster, Ninja), 11 from anime (Goku, Naruto, Kakashi, Luffy, Pikachu, Totoro, Doraemon, Gojo, Tanjiro, Anya, Saitama) and 12 from films and series (Darth Vader, Stormtrooper, Yoda, Batman, Joker, Spider-Man, Iron Man, Harry Potter, Minion, Shrek, Wednesday, Squid Game guard). They are small flat drawings made with shapes, not the studios' artwork. Edit profile > Characters, Anime, Movies and series; the stock pictures and your own picture are still there.
+- Each character does a small action every few seconds (a blink, an ear twitch, a glint on the sunglasses, a heartbeat, a floating Z) at its own time; between the actions the picture stands still, so nothing is redrawn. Appearance's motion setting off keeps them still.
+
+**Schedule and notifications**
+- **Anime timetable** is the first tab: seven day buttons (today and the six days after it, with the number of episodes each has) that stay at the top while you scroll, and the chosen day as a timeline, hour by hour, in your time zone, with a "now" line and a countdown on every time. What aired earlier today is folded away above the now line. Filters: My list / Popular / Everything.
+- **Movies & series** is the second tab: a slider and shelves of what comes out in the next three months (films in your cinemas, films reaching streaming, new series with their network, anime that has not started). **Notifications** is the third tab.
+- The bell on a title page now really works: the app checks for new episodes while it is open (a minute after the start, then every 3 hours) and sends a silent tray notification.
+- **Update list status automatically** (Settings > Player): Watching when you start a title, Completed when its last episode is done (AniList, MyAnimeList, Simkl). A title is moved only when it is already on one of your lists; Settings > Accounts & sync > Lists has "Add every title I play" and a switch to turn the automatic update off.
+
+**Explore, Home and title pages**
+- **Explore** is calmer: one row of controls (Movies / TV series / Anime, Global / Local, then Genre, Streaming and Language as drop-downs with "Clear filters"), and the banner stops turning while the pointer is on it.
+- **More like this** has a heading, a line that says what the list is, the year and first genre under every poster.
+- **Continue watching** is a row of 16:9 cards: still of the episode, what is next, time left, the source you watched with. **Recommended** tab on anime pages with *Add to Planning*.
+- **Stats** (watch time, streak, activity map, genres, studios, cast, extensions, languages, rewatches) has a button on the History page and on the Library page.
+- **Extension list on Home**: searchable panel with the sites' real icons, language, types and a Stremio group. Stremio is off until you turn it on.
+- **Library**: a failing service no longer locks the library; the page offers another list and a retry.
+- Buttons give way under a press and glide between rest, hover and press; the pill tabs slide the filled pill; posters, episode rows and the "related" lists arrive one after the other.
+
+**Subtitles**
+- **The automatic choice is no longer "random"**: it waits until the video is open and the online files are looked at (dead, empty and wrong-length ones are left out, working ones come first), takes the file whose timing most files agree on, and keeps it.
+- **Signs & songs where the picture's writing is**: a second subtitle that is a signs / songs / typeset track keeps its own places and look. Subtitles > Second subtitle > "Where it is shown" switches it for any track.
+- **Encoding** like on the phone (Settings > Player and Subtitles > Encoding in the player); old Shift JIS, Windows-1251 ... files read right.
+- **Translate on-screen text** (key T, player menu): reads the writing that is part of the picture (game windows, signs) with Windows' own OCR and shows it translated over the picture. Needs the OCR language pack of the language in Windows.
+- Kitsunekko (Japanese) as a provider; a *Signs & songs / forced* filter in the search; tick several results to add them at once.
+- "Looking for subtitles…" no longer stays on a video that has none.
+
+**Sources and extensions**
+- **Search in the source list** of the player menu (from 5 sources on); sort by quality, size or seeders, with *Last used first* keeping the source that played the last episode on top.
+- **Extension priority**: Settings > General > Extension priority and a star in the search's extension list put the extensions you use first.
+- Open in other players: "Play in mpv" (preferred video player list and episode menu) and "Open in mpv / VLC / Browser" in the player menu start where the picture was. The link's headers go to mpv, up to four subtitle files are loaded; plain files, HLS and DASH work.
+- The Zinkmovies Cloudflare sheet and the Desi community pop-up no longer come back again and again.
+
+**Cloudflare**
+- **Cancel** a Cloudflare check that takes too long (a bar at the bottom of the window), and **Pass Cloudflare checks** in Settings > General > Network switches the solver off.
+- Nepu's window no longer flashes over and over: wiping its old `cf_clearance` cookie now removes the site's domain cookie too. If a check still cannot be passed, a third page dialog within two minutes is not shown.
+
+**Settings**
+- Reorganised: General (language, downloads, network, window), Player (playback, sources, video, audio, subtitles, controls, cache), Appearance (theme & colours, background, layout, home, title pages), Accounts & sync, Updates & backup, About. Rows that do nothing in this app are gone.
+- **Search settings** finds every row by title, description or a few related words. Changing the navigation position no longer sends Settings back to General.
+- **Several windows**: starting the app again opens a second window (Settings > Appearance > Several windows); library, history, resume positions, accounts and settings are the same in every window.
+- **Log out** says so, refreshes the library and the account rows show who is signed in.
+- A second **donation** link for people outside India (Buy Me a Coffee) beside the Razorpay one, in Settings > About, the daily support window and the README.
+
+**Smoother**
+- Pages that wait for the internet (AniList, TMDB, Explore, Stremio add-ons) no longer freeze the window; Settings opens its search and pages faster; the player's native library loads in the background, so the first video opens faster.
+
+**From CloudStream 4 (d9c55e2)**
+- Dynamic range compressor (Settings > Player and the player menu: Off, Light, Dialogue boost, Heavy), the DNS setting applies at once, new and updated translations.
+
+
 ## 1.0.3
 
 **Local lists showed the United States**

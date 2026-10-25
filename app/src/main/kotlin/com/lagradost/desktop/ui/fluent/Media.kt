@@ -11,7 +11,9 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.animation.core.animateDecay
 import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -30,6 +32,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -141,12 +144,13 @@ fun PosterCard(
     val lift by animateFloatAsState(if (pressed) 0.975f else if (hovered && zoomOn) 1.035f else 1f, liftSpec, label = "lift")
     val glow by animateFloatAsState(if (hovered) 1f else 0f, FluentMotion.tweenIn(220))
     val shape = RoundedCornerShape(FluentShapes.card)
+    // a top-lit hairline gives the poster an edge (brighter under the pointer)
+    val edge = depthEdge(if (hovered) 2.1f else 1f)
     val body = @Composable {
         Column(
             modifier
                 .let { if (width != null) it.width(width) else it.fillMaxWidth() }
-                .hoverable(source)
-                .focusRing(source, shape)
+                // fluentClickable adds the hover tracking and the focus ring itself (they were added a second time here: two more nodes and a second focus collector per card)
                 .fluentClickable(source, true, shape, Role.Button, onClick),
         ) {
             Box(
@@ -154,7 +158,8 @@ fun PosterCard(
                     .fillMaxWidth()
                     .aspectRatio(if (landscape) 16f / 9f else 2f / 3f)
                     .graphicsLayer { scaleX = lift; scaleY = lift }
-                    .clip(shape),
+                    .clip(shape)
+                    .hairBorder(edge, shape),
             ) {
                 PosterImage(item, Modifier.fillMaxSize())
                 // hover: a flat dim and a quiet play button (no gradient, shadow or accent)
@@ -162,7 +167,7 @@ fun PosterCard(
                     Box(Modifier.fillMaxSize().graphicsLayer { alpha = glow }.background(Color(0x59000000)), contentAlignment = Alignment.Center) {
                         Box(
                             Modifier
-                                .size(44.dp).background(Color(0x33FFFFFF), CircleShape).border(androidx.compose.ui.unit.Dp.Hairline, Color(0x66FFFFFF), CircleShape),
+                                .size(44.dp).background(Color(0x33FFFFFF), CircleShape).hairBorder(Color(0x66FFFFFF), CircleShape),
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(Icons.Play, size = 16.dp, tint = Color.White)
@@ -188,7 +193,10 @@ fun PosterCard(
             if (sub != null) FText(sub, style = Fluent.type.caption, color = c.textSecondary, maxLines = 1, modifier = Modifier.padding(horizontal = 2.dp))
         }
     }
-    if (menu != null) ContextMenuArea(menu) { body() } else body()
+    // a title of an extension gets the library menu unless the page that shows it brings its own; a TMDB title belongs to no extension (no library entry)
+    if (menu != null) ContextMenuArea(menu) { body() }
+    else if (item !is com.lagradost.desktop.tmdb.TmdbCard && item.url.isNotBlank() && item.apiName.isNotBlank()) CatalogCardMenu(item) { body() }
+    else body()
 }
 
 @Composable
@@ -249,16 +257,20 @@ fun <T> Shelf(
         if (state.firstVisibleItemIndex > 0 || state.firstVisibleItemScrollOffset > 0) state.animateScrollToItem(0)
     }
     var width by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
+    // the row can be held and dragged with the mouse (a touch screen does that by itself, a mouse only had the wheel and the arrows); a short
+    // movement is still a click on the card, and the row carries on a little after the button is let go
     Box(modifier.fillMaxWidth().hoverable(source).onSizeChanged { width = it.width }) {
         LazyRow(
             // a row with no gutter (chips) is cut at its own edge: the cut end fades into the page instead of showing half a chip
             modifier = (if (gutter == 0.dp) Modifier.scrollEdgeFade(state) else Modifier)
-                .touchScroll(state, androidx.compose.foundation.gestures.Orientation.Horizontal),
+                .touchScroll(state, androidx.compose.foundation.gestures.Orientation.Horizontal, mouseDrag = true),
             state = state,
             contentPadding = PaddingValues(horizontal = gutter),
             horizontalArrangement = Arrangement.spacedBy(spacing),
         ) {
-            if (key != null) items(shown, key = key) { content(it) } else items(shown) { content(it) }
+            // the first cards of a shelf arrive one after the other (fade and rise, once per card and run of the app); rows without a gutter are chips and stay still
+            if (key != null) itemsIndexed(shown, key = { _, item -> key(item) }) { i, item -> ShelfCard(gutter != 0.dp, key(item), i) { content(item) } }
+            else itemsIndexed(shown) { i, item -> ShelfCard(gutter != 0.dp, item as Any? ?: i, i) { content(item) } }
         }
         val canBack = state.canScrollBackward
         val canForward = state.canScrollForward
@@ -272,6 +284,11 @@ fun <T> Shelf(
 }
 
 @Composable
+private fun ShelfCard(reveals: Boolean, key: Any, index: Int, content: @Composable () -> Unit) {
+    if (!reveals || index > 12) content() else Box(Modifier.reveal("shelf/" + key, index * 45, rise = 18.dp)) { content() }
+}
+
+@Composable
 fun ChevronButton(glyph: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val c = Fluent.colors
     val source = rememberInteraction()
@@ -280,7 +297,7 @@ fun ChevronButton(glyph: String, modifier: Modifier = Modifier, onClick: () -> U
         modifier
             .size(36.dp)
             .background(if (hovered) c.flyout else c.flyout.copy(alpha = 0.9f), CircleShape)
-            .border(androidx.compose.ui.unit.Dp.Hairline, c.strokeStrong.copy(alpha = 0.5f), CircleShape)
+            .hairBorder(c.strokeStrong.copy(alpha = 0.5f), CircleShape)
             .fluentClickable(source, true, CircleShape, Role.Button, onClick),
         contentAlignment = Alignment.Center,
     ) { Icon(glyph, size = 14.dp, tint = c.text) }

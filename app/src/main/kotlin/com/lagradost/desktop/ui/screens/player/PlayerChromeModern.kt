@@ -1,6 +1,7 @@
 package com.lagradost.desktop.ui.screens.player
 
 import com.lagradost.desktop.ui.fluent.primaryContactPressed
+import com.lagradost.desktop.ui.fluent.hairBorder
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
@@ -34,6 +35,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -44,6 +46,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -73,6 +77,7 @@ import androidx.compose.ui.input.pointer.isPrimaryPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.semantics.Role
@@ -118,11 +123,29 @@ internal val GlassBorder = Color(0x29FFFFFF)
 private val HoverFill = Color(0x2EFFFFFF)
 private val Ink = Color(0xFF111114)
 
+/** A soft shadow under text that floats on the picture: it reads on a white scene too, where the shade behind it is faint */
+private val TextShade = androidx.compose.ui.graphics.Shadow(Color(0x8C000000), Offset(0f, 1.5f), 8f)
+
 /**
- * The controls over the picture, in a fixed order that never moves:
- *  - top left: the back button and what plays (title, episode, quality and source);
- *  - bottom: the seek bar, then at the left the jump / play / volume capsule and the time, at the right one capsule of tools
- *    (Sources, Subtitles, Audio & video | Speed, Episodes, Picture in picture, Settings, Full screen).
+ * The shade behind the controls: [peak] at the screen's edge and nothing at the far end, fading the way light does (smoothstep) so there is
+ * no band and no visible edge. A straight three-stop gradient left a grey fog over the picture, worst on a bright scene.
+ */
+private fun scrim(fromTop: Boolean, peak: Float): Brush {
+    val steps = 8
+    val stops = Array(steps + 1) { i ->
+        val p = i / steps.toFloat()
+        val a = peak * (1f - p * p * (3f - 2f * p))
+        (if (fromTop) p else 1f - p) to Color(0f, 0f, 0f, a)
+    }
+    return Brush.verticalGradient(*(if (fromTop) stops else stops.reversedArray()))
+}
+
+/**
+ * The controls over the picture, flat on a soft shade (no panels), in a fixed order that never moves:
+ *  - top left: the back button and what plays (title, episode, quality and source); top right: Video & Audio;
+ *  - bottom: the seek bar with the time played at its left end and the time left at its right end, and under it one row: at the left the
+ *    transport (previous, back 10 s, play, forward 10 s, next) and the volume, at the right the tools
+ *    (Subtitles, Sources | Speed, Episodes, Picture in picture, Settings, Full screen).
  * [visible] fades them in and out together (top slides down, bottom slides up).
  */
 @Composable
@@ -143,75 +166,119 @@ internal fun ModernChrome(
     val shown by remember { derivedStateOf { reveal > 0.02f } }
     if (!shown) return
     BoxWithConstraints(Modifier.fillMaxSize()) {
+        // what the middle and the right zone can hold: the names of two tools need about 1120 dp, the speed and episode buttons about 900 dp
         val compact = maxWidth < 760.dp
-        val labels = maxWidth >= 1040.dp
-        val roomy = maxWidth >= 1100.dp
+        val labels = maxWidth >= 1120.dp
+        val moreTools = maxWidth >= 900.dp
         // ---- top: back and what plays
         Box(
             Modifier.align(Alignment.TopStart).fillMaxWidth()
                 .graphicsLayer { alpha = reveal; translationY = -(1f - reveal) * 16.dp.toPx() }
-                .background(Brush.verticalGradient(0f to Color(0x99000000), 0.55f to Color(0x40000000), 1f to Color.Transparent))
-                .padding(start = 28.dp, end = 28.dp + com.lagradost.desktop.ui.shell.captionInset, top = 16.dp, bottom = 44.dp),
+                .background(scrim(fromTop = true, peak = 0.66f))
+                .padding(start = 28.dp, end = 28.dp + com.lagradost.desktop.ui.shell.captionInset, top = 16.dp, bottom = 40.dp),
         ) {
             Row(Modifier.fillMaxWidth().onGloballyPositioned { onTop(it.boundsInRoot()) }, verticalAlignment = Alignment.CenterVertically) {
-                GlassButton("Back (Esc)", Modifier.noWindowDrag("playerBack"), size = 44.dp, glass = true, onClick = { Navigator.back() }) { Icon(Icons.Back, size = 18.dp, tint = Color.White) }
-                Spacer(Modifier.width(16.dp))
+                GlassButton("Back (Esc)", Modifier.noWindowDrag("playerBack"), size = 42.dp, onClick = { Navigator.back() }) { Icon(Icons.Back, size = 19.dp, tint = Color.White) }
+                Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
-                    if (s.title.isNotBlank()) FText(s.title, style = Fluent.type.subtitle.copy(fontSize = 20.sp, fontWeight = FontWeight.SemiBold), color = Color.White, maxLines = 1)
-                    s.episodeLabel?.let { FText(it, color = Color(0xCCFFFFFF), maxLines = 1) }
-                    val playing = listOfNotNull(qualityLabel(s), s.sourceName?.lineSequence()?.firstOrNull()?.takeIf { it.isNotBlank() }).joinToString("  ·  ")
-                    if (playing.isNotBlank() && !loading) FText(playing, style = Fluent.type.caption, color = Color(0x99FFFFFF), maxLines = 1)
+                    if (s.title.isNotBlank()) FText(s.title, style = Fluent.type.subtitle.copy(fontSize = 21.sp, fontWeight = FontWeight.SemiBold, shadow = TextShade), color = Color.White, maxLines = 1)
+                    s.episodeLabel?.let { FText(it, style = Fluent.type.body.copy(shadow = TextShade), color = Color(0xE6FFFFFF), maxLines = 1) }
+                    // what plays: the picture size as a small badge, the source beside it
+                    // (a track that has no size yet is named by its bitrate line: far too long for a badge)
+                    val badge = qualityLabel(s)?.takeIf { it.length <= 8 }
+                    val source = s.sourceName?.lineSequence()?.firstOrNull()?.takeIf { it.isNotBlank() }
+                    if ((badge != null || source != null) && !loading) Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        badge?.let { QualityBadge(it) }
+                        source?.let { FText(it, style = Fluent.type.caption.copy(shadow = TextShade), color = Color(0xD9FFFFFF), maxLines = 1) }
+                    }
                 }
                 // video and audio tracks live at the top right (not while the loading screen is up)
                 if (!loading && !episodesOpen) {
                     Spacer(Modifier.width(16.dp))
-                    Capsule(44.dp) {
-                        ToolButton(Icons.Video, "Video & Audio", labels, "Video and audio tracks (A: next audio)") { openMenu(MenuPage.Tracks, it) }
-                    }
+                    ToolButton(Icons.Video, "Video & Audio", labels, "Video and audio tracks (A: next audio)") { openMenu(MenuPage.Tracks, it) }
                 }
             }
         }
-        // ---- bottom: seek bar, then the two capsules (not while the loading screen is up: there is nothing to control yet)
+        // ---- bottom: the seek bar and the row of buttons (not while the loading screen is up: there is nothing to control yet)
         if (!loading) Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                 .graphicsLayer { alpha = reveal; translationY = (1f - reveal) * 20.dp.toPx() }
-                .background(Brush.verticalGradient(0f to Color.Transparent, 0.5f to Color(0x4D000000), 1f to Color(0xB3000000)))
-                .padding(start = 28.dp, end = 28.dp, top = 72.dp, bottom = 20.dp)
+                .background(scrim(fromTop = false, peak = 0.9f))
+                .padding(start = 28.dp, end = 28.dp, top = 84.dp, bottom = 12.dp)
                 .onGloballyPositioned { onBottom(it.boundsInRoot()) },
         ) {
-            ModernSeekBar(s)
-            Spacer(Modifier.height(8.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Capsule {
-                    // play sits between the two 10 s jumps, the episode buttons at the ends
-                    if (s.hasPrev && !compact) PlayerIconButton(Icons.Previous, "Previous episode (Ctrl+Left)", iconSize = 16.dp) { s.prevEpisode() }
-                    SeekButton(back = true, "Back 10 s (J)") { s.seekBy(-10_000) }
-                    PlayButton(s)
-                    SeekButton(back = false, "Forward 10 s (L)") { s.seekBy(10_000) }
-                    if (s.hasNext && !compact) PlayerIconButton(Icons.Next, "Next episode (Ctrl+Right)", iconSize = 16.dp) { s.nextEpisode() }
-                    Spacer(Modifier.width(2.dp))
-                    VolumeControl(s)
-                    if (s.live) { Spacer(Modifier.width(6.dp)); LivePill(s) }
-                    Spacer(Modifier.width(6.dp))
-                }
-                Spacer(Modifier.width(18.dp))
-                if (!compact) TimeText(s, showEnds = roomy)
+            SeekRow(s)
+            Row(Modifier.fillMaxWidth().height(56.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                // the transport at the left edge: play sits between the two 10 s jumps, the episode buttons at the ends
+                if (s.hasPrev && !compact) PlayerIconButton(Icons.Previous, "Previous episode (Ctrl+Left)", iconSize = 16.dp) { s.prevEpisode() }
+                SeekButton(back = true, "Back 10 s (J)") { s.seekBy(-10_000) }
+                PlayButton(s)
+                SeekButton(back = false, "Forward 10 s (L)") { s.seekBy(10_000) }
+                if (s.hasNext && !compact) PlayerIconButton(Icons.Next, "Next episode (Ctrl+Right)", iconSize = 16.dp) { s.nextEpisode() }
+                Spacer(Modifier.width(10.dp))
+                VolumeControl(s)
+                if (s.live) { Spacer(Modifier.width(6.dp)); LivePill(s) }
+                // the tools at the right edge
                 Box(Modifier.weight(1f))
-                Capsule {
-                    ToolButton(Icons.Subtitles, "Subtitles", labels, "Subtitles (S: next)") { openMenu(MenuPage.Subtitles, it) }
-                    ToolButton(Icons.Link, "Sources", labels, "Sources: pick another server") { openMenu(MenuPage.Sources, it) }
-                    CapsuleDivider()
-                    if (!compact) {
-                        if (s.speed != 1f) SpeedChip(s) { openMenu(MenuPage.Speed, it) }
-                        else AnchoredIconButton(Icons.Speed, "Playback speed") { openMenu(MenuPage.Speed, it) }
-                        PlayerIconButton(Icons.List, "Episodes (E)", onClick = toggleEpisodes)
-                    }
-                    PlayerIconButton(Icons.Pip, "Picture in picture (I)") { s.togglePip() }
-                    AnchoredIconButton(Icons.Settings, "All settings and keyboard shortcuts") { openMenu(MenuPage.Root, it) }
-                    PlayerIconButton(if (fullscreen) Icons.ExitFullscreen else Icons.Fullscreen, if (fullscreen) "Exit full screen (F)" else "Full screen (F)", onClick = toggleFullscreen)
+                ToolButton(Icons.Subtitles, "Subtitles", labels, "Subtitles (S: next)") { openMenu(MenuPage.Subtitles, it) }
+                ToolButton(Icons.Link, "Sources", labels, "Sources: pick another server") { openMenu(MenuPage.Sources, it) }
+                ToolDivider()
+                if (moreTools) {
+                    if (s.speed != 1f) SpeedChip(s) { openMenu(MenuPage.Speed, it) }
+                    else AnchoredIconButton(Icons.Speed, "Playback speed") { openMenu(MenuPage.Speed, it) }
+                    PlayerIconButton(Icons.List, "Episodes (E)", onClick = toggleEpisodes)
                 }
+                PlayerIconButton(Icons.Pip, "Picture in picture (I)") { s.togglePip() }
+                AnchoredIconButton(Icons.Settings, "All settings and keyboard shortcuts") { openMenu(MenuPage.Root, it) }
+                PlayerIconButton(if (fullscreen) Icons.ExitFullscreen else Icons.Fullscreen, if (fullscreen) "Exit full screen (F)" else "Full screen (F)", onClick = toggleFullscreen)
             }
         }
+    }
+}
+
+/** The seek bar with the time played at its left end and the time left (or the total, a click switches) at its right end; a live channel has the bar alone */
+@Composable
+private fun SeekRow(s: PlayerSession) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        if (!s.live) { PlayedTime(s); Spacer(Modifier.width(14.dp)) }
+        ModernSeekBar(s, Modifier.weight(1f))
+        if (!s.live) { Spacer(Modifier.width(14.dp)); TimeLeft(s) }
+    }
+}
+
+private val SeekTimeStyle: TextStyle
+    @Composable get() = Fluent.type.bodyStrong.copy(fontSize = 13.sp, fontFeatureSettings = "tnum", shadow = TextShade)
+
+@Composable
+private fun PlayedTime(s: PlayerSession) {
+    FText(fmt(s.positionMs), Modifier.widthIn(min = 44.dp), style = SeekTimeStyle, color = Color.White, maxLines = 1, softWrap = false)
+}
+
+/** The time left; a click shows the total length instead (and back). The tooltip says when the video will end. */
+@Composable
+private fun TimeLeft(s: PlayerSession) {
+    val remainingMs = (s.durationMs - s.positionMs).coerceAtLeast(0L)
+    val showLeft = Appearance.showRemainingTime
+    val ends = if (s.durationMs > 0 && s.status == CSPlayerLoading.IsPlaying) {
+        LocalTime.now().plusSeconds((remainingMs / 1000f / s.speed.coerceAtLeast(0.25f)).toLong()).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
+    } else null
+    val tip = (if (showLeft) "Time left (click for the total length)" else "Total length (click for the time left)") + (ends?.let { "  ·  ends $it" } ?: "")
+    val shape = RoundedCornerShape(6.dp)
+    Tooltip(tip) {
+        FText(
+            if (showLeft) "-${fmt(remainingMs)}" else fmt(s.durationMs),
+            Modifier.widthIn(min = 44.dp).clip(shape).fluentClickable(rememberInteraction(), true, shape, Role.Button) { Appearance.showRemainingTime = !Appearance.showRemainingTime; Appearance.save() },
+            style = SeekTimeStyle, color = Color(0xE6FFFFFF), textAlign = androidx.compose.ui.text.style.TextAlign.End, maxLines = 1, softWrap = false,
+        )
+    }
+}
+
+/** The picture size of what plays ("1080p"): a small outlined badge, so it reads as a fact about the video and not as a caption */
+@Composable
+private fun QualityBadge(text: String) {
+    val shape = RoundedCornerShape(5.dp)
+    Box(Modifier.clip(shape).background(Color(0x2EFFFFFF), shape).hairBorder(Color(0x59FFFFFF), shape).padding(horizontal = 6.dp, vertical = 1.dp)) {
+        FText(text, style = Fluent.type.caption.copy(fontWeight = FontWeight.Bold, letterSpacing = 0.4.sp), color = Color.White, maxLines = 1, softWrap = false)
     }
 }
 
@@ -234,28 +301,19 @@ private fun ToolButton(glyph: String, label: String, showLabel: Boolean, tooltip
             Box(Modifier.size(18.dp), contentAlignment = Alignment.Center) {
                 Icon(glyph, size = 18.dp, tint = Color.White)
             }
-            if (showLabel) FText(label, style = Fluent.type.bodyStrong.copy(fontSize = 13.sp), color = Color.White, maxLines = 1, softWrap = false)
+            if (showLabel) FText(label, style = Fluent.type.bodyStrong.copy(fontSize = 13.sp, shadow = TextShade), color = Color.White, maxLines = 1, softWrap = false)
         }
     }
 }
 
+/** A thin line between the two named tools and the icon tools */
 @Composable
-private fun CapsuleDivider() {
-    Box(Modifier.padding(horizontal = 5.dp).width(1.dp).height(22.dp).background(Color(0x2EFFFFFF)))
+private fun ToolDivider() {
+    Box(Modifier.padding(horizontal = 6.dp).width(1.dp).height(20.dp).background(Color(0x38FFFFFF)))
 }
 
 // ---------------------------------------------------------------------------------------------------------------------------------
 // bottom
-
-/** The floating pill that holds a group of buttons */
-@Composable
-private fun Capsule(height: Dp = 54.dp, content: @Composable RowScope.() -> Unit) {
-    val shape = RoundedCornerShape(50)
-    Row(
-        Modifier.height(height).clip(shape).background(GlassFill, shape).border(Dp.Hairline, GlassBorder, shape).padding(horizontal = 7.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp), content = content,
-    )
-}
 
 /** A round button with the player's hover and press feeling; [glass] gives it a see-through disc of its own (for use outside a capsule) */
 @Composable
@@ -270,7 +328,7 @@ internal fun GlassButton(
     Tooltip(tooltip) {
         Box(
             modifier.size(size).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape).background(bg, CircleShape)
-                .let { if (glass) it.border(Dp.Hairline, GlassBorder, CircleShape) else it }
+                .let { if (glass) it.hairBorder(GlassBorder, CircleShape) else it }
                 .fluentClickable(source, true, CircleShape, Role.Button, onClick),
             contentAlignment = Alignment.Center,
         ) { content() }
@@ -294,7 +352,7 @@ private fun SeekButton(back: Boolean, tooltip: String, seconds: Int = 10, onClic
     GlassButton(tooltip, onClick = onClick) { SeekGlyph(back, seconds) }
 
 @Composable
-private fun SeekGlyph(back: Boolean, seconds: Int, glyphSize: Dp = 26.dp) {
+internal fun SeekGlyph(back: Boolean, seconds: Int, glyphSize: Dp = 26.dp) {
     Box(Modifier.size(glyphSize), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val stroke = this.size.minDimension * 0.085f
@@ -329,20 +387,18 @@ private fun SeekGlyph(back: Boolean, seconds: Int, glyphSize: Dp = 26.dp) {
 /** The main button: a white disc that swaps its glyph with a little pop */
 @Composable
 private fun PlayButton(s: PlayerSession) {
-    val playing = s.status == CSPlayerLoading.IsPlaying
+    val playing = s.showsPause
     val source = rememberInteraction()
     val hovered by source.collectIsHoveredAsState()
     val pressed by source.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.92f else if (hovered) 1.07f else 1f, glide(200))
     Tooltip("Play / Pause (Space)") {
         Box(
-            Modifier.size(46.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape).background(if (hovered) Color.White else Color(0xFFEDEDF0), CircleShape)
+            Modifier.size(52.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape).background(if (hovered) Color.White else Color(0xFFEDEDF0), CircleShape)
                 .fluentClickable(source, true, CircleShape, Role.Button) { s.togglePlay() },
             contentAlignment = Alignment.Center,
         ) {
-            AnimatedContent(playing, transitionSpec = {
-                (fadeIn(glide(200)) + scaleIn(glide(260), initialScale = 0.5f)) togetherWith (fadeOut(glide(90)) + scaleOut(glide(90), targetScale = 0.5f))
-            }) { p -> Icon(if (p) Icons.Pause else Icons.Play, size = 20.dp, tint = Ink) }
+            com.lagradost.desktop.ui.fluent.PlayPauseMorph(playing, 22.dp, Ink)
         }
     }
 }
@@ -362,31 +418,6 @@ private fun SpeedChip(s: PlayerSession, onClick: (Rect?) -> Unit) {
     }
 }
 
-/** 07:34 / 10:34 and, when there is room, when the video will end */
-@Composable
-private fun TimeText(s: PlayerSession, showEnds: Boolean) {
-    if (s.live) return
-    val time = Fluent.type.bodyStrong.copy(fontSize = 14.sp, fontFeatureSettings = "tnum")
-    val remainingMs = (s.durationMs - s.positionMs).coerceAtLeast(0L)
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        FText(fmt(s.positionMs), style = time, color = Color.White, maxLines = 1, softWrap = false)
-        FText("  /  ", style = time.copy(fontWeight = FontWeight.Normal), color = Color(0x80FFFFFF), maxLines = 1, softWrap = false)
-        val total = if (Appearance.showRemainingTime) "-${fmt(remainingMs)}" else fmt(s.durationMs)
-        val shape = RoundedCornerShape(6.dp)
-        Tooltip(if (Appearance.showRemainingTime) "Remaining time (click for total)" else "Total duration (click for remaining)") {
-            FText(
-                total,
-                Modifier.clip(shape).fluentClickable(rememberInteraction(), true, shape, Role.Button) { Appearance.showRemainingTime = !Appearance.showRemainingTime; Appearance.save() },
-                style = time.copy(fontWeight = FontWeight.Normal), color = Color(0xCCFFFFFF), maxLines = 1, softWrap = false,
-            )
-        }
-        if (showEnds && s.durationMs > 0 && s.status == CSPlayerLoading.IsPlaying) {
-            val ends = LocalTime.now().plusSeconds((remainingMs / 1000f / s.speed.coerceAtLeast(0.25f)).toLong()).format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))
-            FText("   ·   ends $ends", style = Fluent.type.caption, color = Color(0x80FFFFFF), maxLines = 1, softWrap = false)
-        }
-    }
-}
-
 // ---------------------------------------------------------------------------------------------------------------------------------
 // seek bar
 
@@ -395,22 +426,31 @@ private fun TimeText(s: PlayerSession, showEnds: Boolean) {
  * glass bubble with the time (and the name of a skip segment). For a live channel it spans the buffered window.
  */
 @Composable
-internal fun ModernSeekBar(s: PlayerSession) {
+internal fun ModernSeekBar(s: PlayerSession, modifier: Modifier = Modifier.fillMaxWidth()) {
     val c = Fluent.colors
     val source = rememberInteraction()
     val hovered by source.collectIsHoveredAsState()
     var width by remember { mutableStateOf(1f) }
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     var hoverX by remember { mutableStateOf<Float?>(null) }
-    val active = hovered || dragFraction != null
-    val trackH by animateDpAsState(if (active) 8.dp else 4.dp, glide(220))
+    val devHover = PlayerDev.seekHover
+    val active = hovered || dragFraction != null || devHover != null
+    val trackH by animateDpAsState(if (active) 7.dp else 4.dp, glide(220))
     val knob by animateFloatAsState(if (active) 1f else 0f, spring(0.55f, 520f))
     val accent = c.accent
+    // the played part glides between the four position reports a second instead of stepping (drawn only: nothing recomposes)
+    val glide = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(s) {
+        snapshotFlow { (s.positionMs.toFloat() / s.durationMs.coerceAtLeast(1)).coerceIn(0f, 1f) }.collectLatest { f ->
+            // a seek or a new video jumps; normal playback moves a hair
+            if (kotlin.math.abs(f - glide.value) > 0.02f || Appearance.motion == Motion.Off) glide.snapTo(f)
+            else glide.animateTo(f, tween(300, easing = LinearEasing))
+        }
+    }
 
     Box(
-        Modifier
-            .fillMaxWidth()
-            .height(28.dp)
+        modifier
+            .height(32.dp)
             .hoverable(source)
             .onSizeChanged { width = it.width.toFloat().coerceAtLeast(1f) }
             .pointerHoverIcon(PointerIcon.Hand)
@@ -437,13 +477,15 @@ internal fun ModernSeekBar(s: PlayerSession) {
             // everything is drawn here: the position changes four times a second and must not recompose anything
             .drawBehind {
                 val duration = s.durationMs.coerceAtLeast(1)
-                val shown = dragFraction ?: (s.positionMs.toFloat() / duration).coerceIn(0f, 1f)
+                val shown = dragFraction ?: if (s.live) (s.positionMs.toFloat() / duration).coerceIn(0f, 1f) else glide.value
                 val buffered = (s.bufferedMs.toFloat() / duration).coerceIn(0f, 1f)
                 val h = trackH.toPx()
                 val y = (size.height - h) / 2
                 val r = CornerRadius(h / 2, h / 2)
-                drawRoundRect(Color(0x38FFFFFF), Offset(0f, y), Size(size.width, h), r)
-                drawRoundRect(Color(0x52FFFFFF), Offset(0f, y), Size(size.width * buffered, h), r)
+                // a faint shadow under the line: on a white scene the see-through track is all but gone without it
+                drawRoundRect(Color(0x38000000), Offset(0f, y + 1.dp.toPx()), Size(size.width, h), r)
+                drawRoundRect(Color(0x47FFFFFF), Offset(0f, y), Size(size.width, h), r)
+                drawRoundRect(Color(0x5CFFFFFF), Offset(0f, y), Size(size.width * buffered, h), r)
                 // skip segments (intro, recap, credits ...)
                 for ((from, to) in s.stampRanges()) {
                     val a = (from.toFloat() / duration).coerceIn(0f, 1f) * size.width
@@ -463,16 +505,65 @@ internal fun ModernSeekBar(s: PlayerSession) {
                 }
             },
     ) {
-        hoverX?.let { x ->
+        (hoverX ?: devHover?.let { it * width })?.let { x ->
             val f = (x / width).coerceIn(0f, 1f)
             val at = (f * s.durationMs).toLong()
             val stamp = s.stampLabelAt(at)
             val label = if (s.live) "-" + fmt((s.durationMs - at).coerceAtLeast(0)) else fmt(at)
-            val shape = RoundedCornerShape(10.dp)
+            // the still of the scene (a second headless player makes them, see SeekThumbs); only the time while there is none yet
+            val thumb = if (s.live) null else s.seekThumbs?.frameAt(f)
+            val crop = if (thumb != null) s.seekThumbs?.content() else null
+            SeekBubble(thumb, crop, stamp, label, x, width, Modifier.align(Alignment.TopStart))
+        }
+    }
+}
+
+/**
+ * What shows above the seek bar while the pointer is on it: the still of the scene with the time in a small pill over its lower edge, or
+ * only the time pill. It stands a hand's breadth above the bar, centred on the pointer, and never leaves the bar's width. The black bars of
+ * a letterboxed film are cut off the still so that it is the picture, not a frame with a picture inside.
+ */
+@Composable
+private fun SeekBubble(thumb: androidx.compose.ui.graphics.ImageBitmap?, crop: IntArray?, stamp: String?, label: String, x: Float, barWidth: Float, modifier: Modifier) {
+    val gap = 12.dp
+    val shape = RoundedCornerShape(10.dp)
+    Box(
+        modifier.layout { measurable, _ ->
+            // measured without the bar's height as a limit (the bar is 28 dp, the bubble is taller and stands above it)
+            val p = measurable.measure(androidx.compose.ui.unit.Constraints())
+            // no height of its own: a size larger than the bar's would be cut to it and the picture centred in what is left (it sat half its height too high)
+            layout(p.width, 0) {
+                val left = (x - p.width / 2f).coerceIn(0f, (barWidth - p.width).coerceAtLeast(0f)).toInt()
+                p.place(left, -p.height - gap.roundToPx())
+            }
+        },
+    ) {
+        if (thumb != null) {
+            val sw = crop?.let { it[2] - it[0] } ?: thumb.width
+            val sh = crop?.let { it[3] - it[1] } ?: thumb.height
+            val aspect = (sw.toFloat() / sh.coerceAtLeast(1)).coerceIn(1.2f, 2.45f)
+            Box(Modifier.width(176.dp).aspectRatio(aspect).clip(shape).background(Color(0xFF0B0C0E), shape)) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    drawImage(
+                        thumb,
+                        srcOffset = androidx.compose.ui.unit.IntOffset(crop?.get(0) ?: 0, crop?.get(1) ?: 0),
+                        srcSize = androidx.compose.ui.unit.IntSize(sw, sh),
+                        dstSize = androidx.compose.ui.unit.IntSize(size.width.toInt().coerceAtLeast(1), size.height.toInt().coerceAtLeast(1)),
+                        filterQuality = androidx.compose.ui.graphics.FilterQuality.High,
+                    )
+                }
+                // a soft shade under the time so that it reads on a bright scene
+                Box(Modifier.align(Alignment.BottomCenter).fillMaxWidth().height(40.dp).background(Brush.verticalGradient(listOf(Color.Transparent, Color(0xB3000000)))))
+                Column(Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (stamp != null) FText(stamp, style = Fluent.type.caption, color = Color(0xFFFFD54F), maxLines = 1, softWrap = false)
+                    FText(label, style = Fluent.type.bodyStrong.copy(fontFeatureSettings = "tnum"), color = Color.White, maxLines = 1, softWrap = false)
+                }
+                // the border drawn over the picture (not around it): no dark frame between the still and the edge
+                Box(Modifier.fillMaxSize().hairBorder(GlassBorder, shape))
+            }
+        } else {
             Column(
-                Modifier.align(Alignment.TopStart)
-                    .offset { IntOffset((x - 40.dp.toPx()).coerceIn(0f, (width - 80.dp.toPx()).coerceAtLeast(0f)).toInt(), -52.dp.roundToPx()) }
-                    .width(80.dp).background(Color(0xE6121316), shape).border(Dp.Hairline, GlassBorder, shape).padding(horizontal = 8.dp, vertical = 5.dp),
+                Modifier.background(Color(0xE6121316), shape).hairBorder(GlassBorder, shape).padding(horizontal = 12.dp, vertical = 5.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 if (stamp != null) FText(stamp, style = Fluent.type.caption, color = Color(0xFFFFD54F), maxLines = 1, softWrap = false)

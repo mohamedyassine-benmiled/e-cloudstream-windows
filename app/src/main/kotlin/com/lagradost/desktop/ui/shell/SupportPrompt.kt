@@ -72,6 +72,8 @@ object SupportPrompt {
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     FText("A star on GitHub helps people find this independent fork. Donations and community links below support the original cs3d project, not e-cloudstream. Thank you to its upstream contributors!", color = Fluent.colors.textSecondary)
+                    // outside India the Razorpay page does not take the card: Buy Me a Coffee does
+                    Button("Support upstream internationally", { DesktopPlatform.openExternalBrowser(AppInfo.DONATE_INTL_URL) }, icon = Icons.Favorite, height = 34.dp)
                     // news and new versions are on Telegram, chat and help on Discord
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button("Upstream Telegram", { DesktopPlatform.openExternalBrowser(AppInfo.TELEGRAM_URL) }, icon = Icons.Link, height = 34.dp)

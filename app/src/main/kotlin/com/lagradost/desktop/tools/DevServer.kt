@@ -8,6 +8,7 @@ import com.lagradost.desktop.ui.BackHandlers
 import com.lagradost.desktop.ui.DesktopUiHost
 
 import com.sun.jna.Memory
+import androidx.compose.ui.unit.dp
 import com.sun.jna.Native
 import com.sun.jna.platform.win32.GDI32
 import com.sun.jna.platform.win32.User32
@@ -22,6 +23,7 @@ import java.awt.Point
 import java.awt.event.InputEvent
 import java.awt.event.KeyEvent
 import java.awt.event.MouseEvent
+import androidx.compose.ui.graphics.asSkiaBitmap
 import java.awt.event.MouseWheelEvent
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -157,8 +159,32 @@ object DevServer {
      * The controls window of the native video player (transparent, owned by the main window): its last frame as Skia drew it, laid over a grey
      * so that the alpha shows. (PrintWindow gives black for such a window and the screen must not be captured.) Null when there is none.
      */
+    private fun skiaLayerOf(c: java.awt.Container): org.jetbrains.skiko.SkiaLayer? {
+        for (ch in c.components) {
+            if (ch is org.jetbrains.skiko.SkiaLayer) return ch
+            if (ch is java.awt.Container) skiaLayerOf(ch)?.let { return it }
+        }
+        return null
+    }
+
+    private fun componentsDump(c: java.awt.Component, depth: Int): String {
+        val sb = StringBuilder("\n" + "  ".repeat(depth) + c.javaClass.name + " keyListeners=" + c.keyListeners.size + " focusable=" + c.isFocusable + " hasFocus=" + c.hasFocus())
+        if (c is java.awt.Container) for (ch in c.components) sb.append(componentsDump(ch, depth + 1))
+        return sb.toString()
+    }
+
+    private fun keyComponentOf(c: java.awt.Container): java.awt.Component? {
+        for (ch in c.components) {
+            if (ch.keyListeners.isNotEmpty()) return ch
+            if (ch is java.awt.Container) keyComponentOf(ch)?.let { return it }
+        }
+        return null
+    }
+
+    private fun captureOverlayWindow(): java.awt.Window? = java.awt.Window.getWindows().firstOrNull { it is java.awt.Dialog && it.isShowing && it.isUndecorated }
+
     private fun captureOverlay(): BufferedImage? {
-        val overlay = java.awt.Window.getWindows().firstOrNull { it is java.awt.Dialog && it.isShowing && it.isUndecorated } ?: return null
+        val overlay = captureOverlayWindow() ?: return null
         return skiaShot(overlay)
     }
 
@@ -296,6 +322,37 @@ object DevServer {
                     + "lastActivePopup=${userDbg.GetLastActivePopup(hwnd.pointer)} overlay=$overlay overlayVisible=${overlay?.let { u.IsWindowVisible(it) }} overlayEx=${exStyle(overlay)}\n"
                     + "owner of overlay=${overlay?.let { userDbg.GetWindow(it.pointer, 4) }}" + "\nmainEnabled=${u.IsWindowEnabled(hwnd)} overlayModality=${(java.awt.Window.getWindows().firstOrNull { it is java.awt.Dialog && it.isShowing && it.isUndecorated } as? java.awt.Dialog)?.modalityType}")
             }
+            "/wipe" -> {
+                // dev: does to the data store what a sync extension did on 14, 16 and 18 Oct, to see that WipeGuard holds: /wipe?mode=clear|singles|plugins
+                val prefs = com.lagradost.desktop.runtime.AndroidRuntime.context.getSharedPreferences("rebuild_preference", 0)
+                val before = prefs.all.size
+                when (q["mode"] ?: "clear") {
+                    "singles" -> for (k in prefs.all.keys.toList()) prefs.edit().remove(k).apply()
+                    "plugins" -> prefs.edit().remove("PLUGINS_KEY").remove("REPOSITORIES_KEY").apply()
+                    else -> prefs.edit().clear().apply()
+                }
+                Thread.sleep(600)
+                ok(ex, "keys before=$before after=${prefs.all.size} PLUGINS_KEY=${prefs.contains("PLUGINS_KEY")} REPOSITORIES_KEY=${prefs.contains("REPOSITORIES_KEY")}")
+            }
+            "/profileeditor" -> {
+                // dev: the "Edit profile" window of the first profile (or a made-up one); /profileeditor?sheet=Characters|Anime|Movies shows that group big instead
+                if (q["sheet"] != null) {
+                    com.lagradost.desktop.ui.fluent.Overlays.show(
+                        com.lagradost.desktop.ui.fluent.Overlays.Dialog("Characters", close = "Close", width = 760.dp) {
+                            androidx.compose.foundation.layout.FlowRow(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp), verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(12.dp)) {
+                                for (ch in com.lagradost.desktop.ui.shell.avatarCharacters.filter { c -> q["sheet"] == "1" || c.group.startsWith(q["sheet"]!!, true) }) {
+                                    com.lagradost.desktop.ui.shell.ProfileAvatar(null, 110.dp, look = com.lagradost.desktop.ui.shell.ProfileLook(com.lagradost.desktop.ui.shell.AvatarStyle.Character, ch.bg, ch.id), animated = false)
+                                }
+                            }
+                        },
+                    )
+                } else {
+                    val account = runCatching { com.lagradost.cloudstream3.utils.DataStoreHelper.getAccounts(com.lagradost.desktop.DesktopBootstrap.activity).firstOrNull() }.getOrNull()
+                        ?: com.lagradost.cloudstream3.utils.DataStoreHelper.Account(keyIndex = 0, name = "Test", defaultImageIndex = 0)
+                    com.lagradost.desktop.ui.shell.showProfileEditor(account)
+                }
+                ok(ex)
+            }
             "/winrects" -> {
                 // dev: where the windows are right now, fast (no waiting): the main window, the native controls window and their visibility
                 val u = com.sun.jna.platform.win32.User32.INSTANCE
@@ -354,6 +411,15 @@ object DevServer {
                 }
                 if (q["save"] != null) bestImg?.let { ImageIO.write(it, "png", java.io.File(q["save"]!!)) }
                 ok(ex, out.toString())
+            }
+            "/seekthumb" -> {
+                // dev: the seek-bar preview at /seekthumb?f=0.5 (fraction of the video) as a PNG; "none" while there is no frame
+                val t = com.lagradost.desktop.ui.screens.player.PlayerSession.active?.seekThumbs
+                val bmp = t?.frameAt(q["f"]?.toFloatOrNull() ?: 0.5f)
+                if (bmp == null) ok(ex, "none (frames: ${t?.ready})") else {
+                    val data = org.jetbrains.skia.Image.makeFromBitmap(bmp.asSkiaBitmap()).encodeToData(org.jetbrains.skia.EncodedImageFormat.PNG)!!
+                    respond(ex, 200, "image/png", data.bytes)
+                }
             }
             "/overlayshot" -> {
                 // dev: the native player's controls window alone (what the screenshot of the main window does not show)
@@ -484,6 +550,41 @@ object DevServer {
                 for (c in q["text"] ?: "") key(KeyEvent.getExtendedKeyCodeForChar(c.code), 0, c)
                 ok(ex)
             }
+            "/oclick" -> {
+                // dev: a click in the native player's controls window (overlay shot pixels): /oclick?x=1000&y=270
+                onEdt {
+                    val w = captureOverlayWindow()
+                    if (w != null) {
+                        val s = scale()
+                        val ux = (q["x"]!!.toInt() / s).toInt()
+                        val uy = (q["y"]!!.toInt() / s).toInt()
+                        val comp = SwingUtilities.getDeepestComponentAt(w, ux, uy) ?: w
+                        val p = SwingUtilities.convertPoint(w, ux, uy, comp)
+                        mouse(comp, MouseEvent.MOUSE_MOVED, p, 0, 0, MouseEvent.NOBUTTON)
+                        mouse(comp, MouseEvent.MOUSE_PRESSED, p, InputEvent.BUTTON1_DOWN_MASK, 1, MouseEvent.BUTTON1)
+                        mouse(comp, MouseEvent.MOUSE_RELEASED, p, 0, 1, MouseEvent.BUTTON1)
+                        mouse(comp, MouseEvent.MOUSE_CLICKED, p, 0, 1, MouseEvent.BUTTON1)
+                    }
+                }
+                ok(ex)
+            }
+            "/otype" -> {
+                // dev: text typed into whatever has the keyboard in the controls window (a search box of the player menu)
+                onEdt {
+                    val w = captureOverlayWindow()
+                    val comp: java.awt.Component? = w?.let { keyComponentOf(it) }
+                    if (comp != null) {
+                        for (c in q["text"] ?: "") {
+                            val now = System.currentTimeMillis()
+                            val code = KeyEvent.getExtendedKeyCodeForChar(c.code)
+                            comp.dispatchEvent(KeyEvent(comp, KeyEvent.KEY_PRESSED, now, 0, code, c))
+                            comp.dispatchEvent(KeyEvent(comp, KeyEvent.KEY_TYPED, now, 0, KeyEvent.VK_UNDEFINED, c))
+                            comp.dispatchEvent(KeyEvent(comp, KeyEvent.KEY_RELEASED, now, 0, code, c))
+                        }
+                    }
+                }
+                ok(ex, "typed into: " + captureOverlayWindow()?.let { keyComponentOf(it) }?.javaClass?.name)
+            }
             "/hit" -> {
                 // dev: what the integrated title bar reports for a window pixel (screenshot pixels), e.g. /hit?x=1800&y=20
                 val scale = DesktopUiHost.window?.graphicsConfiguration?.defaultTransform?.scaleX ?: 1.0
@@ -513,6 +614,8 @@ object DevServer {
                     "search" -> nav.search(q["q"], q["only"])
                     "explore" -> nav.goTab(com.lagradost.desktop.core.Tab.Search)
                     "history" -> nav.go(com.lagradost.desktop.core.Route.History)
+                    "schedule" -> nav.go(com.lagradost.desktop.core.Route.Schedule)
+                    "stats" -> nav.go(com.lagradost.desktop.core.Route.Stats)
                     "person" -> nav.go(com.lagradost.desktop.core.Route.Person((q["q"] ?: "287").toInt(), q["name"] ?: "", null))
                     "library" -> nav.goTab(com.lagradost.desktop.core.Tab.Library)
                     "downloads" -> nav.goTab(com.lagradost.desktop.core.Tab.Downloads)
@@ -749,8 +852,9 @@ object DevServer {
                 val file = java.io.File(q["file"]!!)
                 val sd = com.lagradost.cloudstream3.ui.player.SubtitleData(q["name"] ?: "Test", "", file.toURI().toString(), com.lagradost.cloudstream3.ui.player.SubtitleOrigin.DOWNLOADED_FILE, "application/x-subrip", emptyMap(), q["lang"])
                 p.setActiveSubtitles(setOf(sd))
-                p.setPreferredSubtitles(sd)
-                ok(ex)
+                // &second=1: as the second subtitle (mpv secondary-sid), the way a signs & songs track is added from the search dialog
+                if (q["second"] != null) p.setSecondarySubtitle(sd) else p.setPreferredSubtitles(sd)
+                ok(ex, "second=${q["second"] != null} ownPlaces=${p.secondaryKeepsPlaces()}")
             }
             "/mpv" -> {
                 // dev: read (and set) an mpv property of the playing video: /mpv?name=sub-use-margins&set=no
@@ -758,6 +862,18 @@ object DevServer {
                 val name = q["name"]!!
                 q["set"]?.let { p.setMpvProperty(name, it) }
                 ok(ex, "$name=${p.getMpvPropertyString(name)}")
+            }
+            "/mpvshot" -> {
+                // dev: what mpv itself draws, as a PNG file: /mpvshot?file=C:/x/a.png&mode=subtitles|video|window (the native player's own window can not be captured from outside)
+                val p = com.lagradost.desktop.player.MpvPlayer.active ?: return ok(ex, "no player")
+                val file = java.io.File(q["file"]!!)
+                val rc = p.mpvCommandResult("screenshot-to-file", file.absolutePath, q["mode"] ?: "subtitles")
+                ok(ex, "rc=$rc size=${file.length()}")
+            }
+            "/mpvcmd" -> {
+                // dev: any mpv command, arguments separated by | : /mpvcmd?args=sub-add|C:/x/signs.ass|auto
+                val p = com.lagradost.desktop.player.MpvPlayer.active ?: return ok(ex, "no player")
+                ok(ex, "rc=${p.mpvCommandResult(*q["args"]!!.split('|').toTypedArray())}")
             }
             "/mem" -> {
                 // dev: where the memory of this process is: heap, other JVM memory, threads, classes, direct buffers, native libraries, and what Windows reports as the working set
@@ -770,6 +886,24 @@ object DevServer {
                 ok(ex, "heap used " + mb(mx.heapMemoryUsage.used) + " / committed " + mb(mx.heapMemoryUsage.committed) + " / max " + mb(mx.heapMemoryUsage.max) + "\n" +
                     "non-heap used " + mb(mx.nonHeapMemoryUsage.used) + " / committed " + mb(mx.nonHeapMemoryUsage.committed) + "\n" +
                     "classes " + cl.loadedClassCount + ", threads " + th.threadCount + "\n" + "buffers: " + direct)
+            }
+            "/edtprofile" -> {
+                // dev: what the UI thread spends its busy time on: /edtprofile?start=1 ... do something ... /edtprofile?stop=1&top=40
+                if (q["start"] != null) { com.lagradost.desktop.tools.EdtSampler.start(q["ms"]?.toLongOrNull() ?: 4L, q["thread"]?.ifBlank { null }); ok(ex, "sampling") }
+                else if (q["threads"] != null) ok(ex, com.lagradost.desktop.tools.EdtSampler.threads(q["top"]?.toIntOrNull() ?: 14))
+                else if (q["jank"] != null) ok(ex, com.lagradost.desktop.tools.EdtSampler.jank(q["s"]?.toIntOrNull() ?: 10, q["jank"]?.toIntOrNull() ?: 50, q["top"]?.toIntOrNull() ?: 14))
+                else ok(ex, com.lagradost.desktop.tools.EdtSampler.stop(q["top"]?.toIntOrNull() ?: 40))
+            }
+            "/gpubench" -> {
+                // dev: first-draw cost of a row of posters: /gpubench?mode=row|bare&n=12&reps=3
+                com.lagradost.desktop.tools.GpuBench.holdMs = q["hold"]?.toLongOrNull() ?: 0L
+                val runs = kotlinx.coroutines.runBlocking { com.lagradost.desktop.tools.GpuBench.run(q["mode"] ?: "row", q["n"]?.toIntOrNull() ?: 12, q["reps"]?.toIntOrNull() ?: 3) }
+                ok(ex, runs.joinToString("\n") { f -> "max=" + (f.maxOrNull() ?: 0) + " >33=" + f.count { it > 33 } + " >50=" + f.count { it > 50 } + " stall=" + f.sumOf { maxOf(0L, it - 17) } + " ms | " + f.take(14).joinToString(" ") })
+            }
+            "/composetrace" -> {
+                // dev: composition cost per composable: /composetrace?start=1 ... do something ... /composetrace?stop=1&top=40
+                if (q["start"] != null) { com.lagradost.desktop.tools.ComposeTrace.start(); ok(ex, "tracing") }
+                else ok(ex, com.lagradost.desktop.tools.ComposeTrace.stop(q["top"]?.toIntOrNull() ?: 40))
             }
             "/framestats" -> ok(ex, com.lagradost.desktop.tools.FrameStats.report(q["s"]?.toInt() ?: 10) + (q["worst"]?.toIntOrNull()?.let { "\n" + com.lagradost.desktop.tools.FrameStats.worst(q["s"]?.toInt() ?: 10, it) } ?: ""))
             "/videostats" -> {
@@ -882,6 +1016,31 @@ object DevServer {
                 }
                 ok(ex, out.toString())
             }
+            "/installplugin" -> {
+                // dev: install and load one extension through the app's own installer (into the data folder this run uses):
+                // /installplugin?url=https://raw.githubusercontent.com/OWNER/REPO/builds/Name.cs3&name=Name&repo=<repository url>
+                val act = com.lagradost.desktop.DesktopBootstrap.activity
+                val ok = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                    com.lagradost.cloudstream3.plugins.PluginManager.downloadPlugin(act, q["url"]!!, null, q["name"]!!, q["repo"] ?: q["url"]!!, true)
+                }
+                ok(ex, "installed=$ok providers=${com.lagradost.cloudstream3.APIHolder.allProviders.map { it.name }.filter { it.contains(q["name"]!!, true) }}")
+            }
+            "/nepusolve" -> {
+                // dev: Nepu's own Cloudflare solver window (a page in an AlertDialog with a Cancel button) opened the way the extension opens it after a blocked
+                // request: /nepusolve?wait=20000 ; answers true / false / null (still open after the wait: the window is closed) and the time it took
+                val plugin = com.lagradost.cloudstream3.plugins.PluginManager.plugins.toMap().values.firstOrNull { it.javaClass.name.contains("nepu", true) } ?: return ok(ex, "no Nepu")
+                val m = plugin.javaClass.classLoader.loadClass("com.csksy.nepu.NepuCFKt").getMethod("solveNepuCloudflare", String::class.java, kotlin.coroutines.Continuation::class.java)
+                val started = System.currentTimeMillis()
+                val result = kotlinx.coroutines.runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                    kotlinx.coroutines.withTimeoutOrNull(q["wait"]?.toLong() ?: 20_000L) {
+                        kotlinx.coroutines.suspendCancellableCoroutine<Any?> { cont ->
+                            val r = m.invoke(null, "https://nepu.io/", cont)
+                            if (r !== kotlin.coroutines.intrinsics.COROUTINE_SUSPENDED) cont.resumeWith(Result.success(r))
+                        }
+                    }
+                }
+                ok(ex, "result=$result after ${System.currentTimeMillis() - started} ms")
+            }
             "/apisearch" -> {
                 // dev: one provider's search by name, with the error if it throws: /apisearch?name=Zinkmovies%20Monster&q=leo
                 val api = com.lagradost.cloudstream3.APIHolder.allProviders.firstOrNull { it.name.equals(q["name"], true) } ?: return ok(ex, "no provider")
@@ -908,6 +1067,7 @@ object DevServer {
                 }
                 ok(ex)
             }
+            "/subtable" -> ok(ex, com.lagradost.desktop.ui.screens.player.PlayerSession.active?.debugSubtitleTable() ?: "no player page")
             "/subdeliver" -> {
                 // dev: subtitles delivered by an "extension" while playing, left to the automatic choice: /subdeliver?urls=http://a.srt|http://b.srt&names=English 0|English 1&lang=en
                 val s = com.lagradost.desktop.ui.screens.player.PlayerSession.active ?: return ok(ex, "no player page")
@@ -936,6 +1096,14 @@ object DevServer {
                 }
                 ok(ex, out)
             }
+            "/mpvtest" -> {
+                // dev: hand a link to mpv the way the mpv action does: /mpvtest?url=https://...mp4&exe=C:/path/mpv.exe&ref=https://site/&sub=1 (no exe: the chosen or found mpv)
+                val ref = q["ref"]
+                val link = kotlinx.coroutines.runBlocking { com.lagradost.cloudstream3.utils.newExtractorLink("test", "test", q["url"]!!) { if (ref != null) headers = mapOf("Referer" to ref, "Cookie" to "a=b") } }
+                val exe = q["exe"]?.let { java.io.File(it) } ?: com.lagradost.desktop.player.ExternalPlayers.mpvPath()
+                val outcome = com.lagradost.desktop.player.ExternalPlayers.openInMpv(link, "CloudStream test", emptyList(), q["at"]?.toDouble(), exe, q["x"]?.split('|').orEmpty())
+                ok(ex, "ok=${outcome.ok} ${outcome.message ?: ""} mpv=$exe")
+            }
             "/vlctest" -> {
                 // dev: hand a link to VLC the way the VLC action does: /vlctest?url=https://...mp4 (VLC opens; it quits itself after 4 s)
                 val link = kotlinx.coroutines.runBlocking { com.lagradost.cloudstream3.utils.newExtractorLink("test", "test", q["url"]!!) {} }
@@ -945,6 +1113,18 @@ object DevServer {
             "/windows" -> {
                 // dev: the AWT windows of the app (class, title, shown, bounds in screen px)
                 ok(ex, java.awt.Window.getWindows().joinToString("\n") { w -> "${w.javaClass.simpleName} '${(w as? java.awt.Dialog)?.title ?: (w as? java.awt.Frame)?.title ?: ""}' shown=${w.isShowing} ${w.bounds.x},${w.bounds.y} ${w.bounds.width}x${w.bounds.height}" })
+            }
+            "/cfgate" -> {
+                // dev: what the Cloudflare gate thinks of an extension: /cfgate?api=AnimePahe
+                val gate = com.lagradost.desktop.runtime.web.CloudflareGate
+                val api = com.lagradost.cloudstream3.APIHolder.getApiFromNameNull(q["api"]!!)
+                val host = api?.let { runCatching { java.net.URI(it.mainUrl).host }.getOrNull() }
+                ok(ex, "active=${gate.activeApis()} host=$host apisOfHost=${host?.let { gate.apisOfHost(it) }} apisOfLoader=${api?.let { gate.apisOfLoader(it.javaClass.classLoader) }} inUseHost=${host?.let { gate.inUseHost(it) }} inUseOwner=${api?.let { gate.inUseOwner(it.javaClass) }} allowsSolving=${host?.let { gate.allowsSolving(it) }}")
+            }
+            "/ytstreams" -> {
+                // dev: the YouTube streams the app's own fallback finds for a trailer: /ytstreams?url=https://www.youtube.com/watch?v=<id>
+                val links = kotlinx.coroutines.runBlocking { com.lagradost.desktop.net.YouTubeStreams.links(q["url"]!!) }
+                ok(ex, links.joinToString("\n") { "${it.name} ${it.quality}p audio=${it.audioTracks.size} ${it.url.take(70)}" }.ifBlank { "no streams" })
             }
             "/playurl" -> {
                 // dev: play a plain link in the player to look at its controls: /playurl?url=https://...mp4&name=Title
@@ -969,6 +1149,13 @@ object DevServer {
                 val n = q["n"]!!.toInt()
                 onEdt { s.selectSource(list[n].link) }
                 ok(ex, "picked ${list[n].name} of ${list.joinToString { it.name + if (it.usable) "" else "(failed)" }}")
+            }
+            "/border" -> {
+                // dev: how 1 px borders are drawn: /border?mode=stroke|ring&width=1 (every border redraws at once)
+                val style = com.lagradost.desktop.ui.fluent.EdgeStyle
+                q["mode"]?.let { style.mode = it }
+                q["width"]?.toFloatOrNull()?.let { style.width = it }
+                ok(ex, "mode=${style.mode} width=${style.width}")
             }
             "/pref" -> {
                 // dev: set a string preference: /pref?key=player_default_key&value=...
@@ -1030,11 +1217,43 @@ object DevServer {
                 val l = links.first()
                 ok(ex, "$verdict | ${hit.name} | ${l.type} drm=${l.javaClass.simpleName} ${l.url.substringBefore('?').take(90)} | " + line.replace('\n', ' ').take(160))
             }
+            "/cfdialog" -> {
+                // dev: a page in a dialog with a Cancel button, like the solver window of Nepu: shown (and closed after ?hold= ms), or refused by Settings > General >
+                // Pass Cloudflare checks / the guard against dialogs that keep coming; answers whether it was shown and whether Cancel was pressed
+                val act = com.lagradost.desktop.DesktopBootstrap.activity
+                var cancelled = false
+                var shown: androidx.appcompat.app.AlertDialog? = null
+                onEdt {
+                    val root = android.widget.FrameLayout(act)
+                    root.addView(android.webkit.WebView(act))
+                    val cancel = android.widget.Button(act)
+                    cancel.setText("Cancel")
+                    cancel.setOnClickListener { cancelled = true; shown?.dismiss() }
+                    if (q["nocancel"] == null) root.addView(cancel)
+                    val d = androidx.appcompat.app.AlertDialog.Builder(act).setView(root).setCancelable(false).create()
+                    shown = d
+                    d.show()
+                }
+                Thread.sleep((q["hold"]?.toLong() ?: 400L))
+                // &keep=1: the window stays open for a real click on its Cancel (the server answers one call at a time)
+                if (q["keep"] != null) return ok(ex, "opened")
+                var showing = false
+                onEdt { showing = shown?.isShowing() == true; if (showing) shown?.dismiss() }
+                ok(ex, "shown=$showing cancelled=$cancelled")
+            }
             "/cfkiller" -> {
                 // dev: one request through the app's built-in Cloudflare handler (the one many extensions use as `interceptor = CloudflareKiller()`: a
                 // hidden browser, no dialog, no click): /cfkiller?url=https://animepahe.pw/api?m=search&q=naruto ; prints the status, the time and the start of the body
                 val url = q["url"]!!
                 val started = System.currentTimeMillis()
+                // &bg=1: the request runs on a thread of its own and the answer goes to the log (this server answers one request at a time: a minute-long check would hold every other call)
+                if (q["bg"] != null) {
+                    Thread {
+                        val r = runCatching { kotlinx.coroutines.runBlocking { com.lagradost.cloudstream3.app.get(url, interceptor = com.lagradost.cloudstream3.network.CloudflareKiller(), timeout = 120).code } }
+                        android.util.Log.i("DevServer", "cfkiller $url: ${r.getOrNull() ?: r.exceptionOrNull()} after ${(System.currentTimeMillis() - started) / 1000.0} s")
+                    }.start()
+                    return ok(ex, "started")
+                }
                 val out = kotlinx.coroutines.runBlocking {
                     runCatching {
                         val r = com.lagradost.cloudstream3.app.get(url, interceptor = com.lagradost.cloudstream3.network.CloudflareKiller(), timeout = 120)
@@ -1276,7 +1495,15 @@ object DevServer {
                     val session = com.lagradost.desktop.ui.screens.player.PlayerSession.active
                     onEdt { session?.selectSubtitle(if (n == "off") null else session.subtitles().firstOrNull { it.originalName == n }) }
                 }
+                // dev: /player?second=<subtitle name> shows that subtitle as the second one (or off); &inplace=1|0 keeps its own places or not
+                q["second"]?.let { n ->
+                    val session = com.lagradost.desktop.ui.screens.player.PlayerSession.active
+                    onEdt { session?.selectSecondarySubtitle(if (n == "off") null else session.subtitles().firstOrNull { it.originalName == n }) }
+                }
+                q["inplace"]?.let { v -> com.lagradost.desktop.ui.screens.player.PlayerSession.active?.let { s -> onEdt { s.setSecondaryInPlace(v == "1") } } }
                 q["hold"]?.let { v -> com.lagradost.desktop.ui.screens.player.PlayerDev.hold = v == "1" }
+                q["menu"]?.let { v -> com.lagradost.desktop.ui.screens.player.PlayerDev.menu = v }
+                q["seekhover"]?.let { v -> com.lagradost.desktop.ui.screens.player.PlayerDev.seekHover = v.toFloatOrNull()?.takeIf { it >= 0f } }
                 // dev: artwork and story for the pause screen of a plain link (it has no title page): /player?logo=<url>&plot=<text>
                 q["logo"]?.let { com.lagradost.desktop.ui.screens.player.PlayerDev.pauseLogo = it.takeIf { v -> v.isNotBlank() } }
                 q["plot"]?.let { com.lagradost.desktop.ui.screens.player.PlayerDev.pausePlot = it.takeIf { v -> v.isNotBlank() } }

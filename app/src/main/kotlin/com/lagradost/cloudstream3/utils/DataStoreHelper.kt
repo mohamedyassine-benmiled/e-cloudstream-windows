@@ -201,11 +201,13 @@ object DataStoreHelper {
             }
         }
 
-    fun setAccount(account: Account) {
+    fun setAccount(account: Account, showToast: Boolean = true) {
         val homepage = currentHomePage
         selectedKeyIndex = account.keyIndex
         AccountManager.updateAccountIds()
-        showToast(context?.getString(R.string.logged_account, account.name) ?: account.name)
+        if (showToast) {
+            showToast(context?.getString(R.string.logged_account, account.name) ?: account.name)
+        }
         MainActivity.bookmarksUpdatedEvent(true)
         MainActivity.reloadLibraryEvent(true)
         val oldAccount = accounts.find { it.keyIndex == account.keyIndex }
@@ -528,7 +530,8 @@ object DataStoreHelper {
 
     fun deleteAllResumeStateIds() {
         val folder = "$currentAccount/$RESULT_RESUME_WATCHING"
-        removeKeys(folder)
+        // the user's own "clear history": a bulk deletion the guard against sync wipes lets through
+        com.lagradost.desktop.runtime.WipeGuard.allow { removeKeys(folder) }
     }
 
     fun deleteBookmarkedData(id: Int?) {
@@ -761,6 +764,10 @@ object DataStoreHelper {
         if (id == null) return null
         return getKey<PosDur>("$currentAccount/$VIDEO_POS_DUR", id.toString(), null)
     }
+
+    // desktop: every saved position (what was watched of each episode and film); the Stats page adds them up for the time before it kept its own log
+    fun getAllViewPositions(): List<PosDur> =
+        getKeys("$currentAccount/$VIDEO_POS_DUR")?.mapNotNull { getKey<PosDur>(it) } ?: emptyList()
 
     fun getVideoWatchState(id: Int?): VideoWatchState? {
         if (id == null) return null

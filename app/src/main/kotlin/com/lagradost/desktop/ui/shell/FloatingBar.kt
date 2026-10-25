@@ -1,5 +1,7 @@
 package com.lagradost.desktop.ui.shell
 
+import com.lagradost.desktop.ui.fluent.hairBorder
+
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -53,6 +55,7 @@ import com.lagradost.desktop.ui.fluent.Icon
 import com.lagradost.desktop.ui.fluent.IconButton
 import com.lagradost.desktop.ui.fluent.Icons
 import com.lagradost.desktop.ui.fluent.NavItem
+import com.lagradost.desktop.ui.fluent.NavIcon
 import com.lagradost.desktop.ui.fluent.Tooltip
 import com.lagradost.desktop.ui.fluent.fluentClickable
 import com.lagradost.desktop.ui.fluent.primaryBorder
@@ -92,6 +95,7 @@ internal fun FloatingTopBar() {
         val rightNeed = if (ShellState.homeSearchOpen && onHome) 640.dp else 404.dp
         val wide = maxWidth / 2 >= rightNeed + 250.dp
         val tight = maxWidth / 2 < rightNeed + 150.dp
+        val narrow = maxWidth < 760.dp
         Row(Modifier.fillMaxSize().padding(start = 14.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             if (!com.lagradost.desktop.platform.WinChrome.windowedBar) {
                 IconButton(Icons.Back, { Navigator.back() }, Modifier.noWindowDrag("topBack"), enabled = Navigator.canGoBack, tooltip = "Back (Alt+Left)")
@@ -99,13 +103,14 @@ internal fun FloatingTopBar() {
             }
             brandLogo?.let { androidx.compose.foundation.Image(it, "CloudStream", Modifier.size(26.dp)) }
             Box(Modifier.weight(1f))
+            // a window of half a screen (snapped, or the smallest): the search and reload buttons would sit under the capsule; Ctrl+K and the Search page remain
             if (onHome) {
-                selectedHomeProvider()?.let { ExtensionSearch(it) }
-                ShellState.homeActions?.let { a ->
+                if (!narrow) selectedHomeProvider()?.let { ExtensionSearch(it) }
+                if (!narrow) ShellState.homeActions?.let { a ->
                     IconButton(Icons.Refresh, a.reload, Modifier.noWindowDrag("reload"), tooltip = "Reload the home page", kind = ButtonKind.Subtle, size = 36.dp)
                     Box(Modifier.width(6.dp))
                 }
-                ProviderSelector(Modifier.widthIn(max = 200.dp).noWindowDrag("provider"))
+                ProviderSelector(Modifier.widthIn(max = if (narrow) 150.dp else 200.dp).noWindowDrag("provider"))
                 Box(Modifier.width(8.dp))
             }
             AccountAvatar()
@@ -160,7 +165,7 @@ private fun NavCapsule(compact: Boolean, modifier: Modifier) {
             .shadow(24.dp, shape, clip = false, ambientColor = Color.Black, spotColor = Color.Black)
             .clip(shape)
             .background(if (isClassic) Color(0xD90B0B10) else c.flyout.copy(alpha = if (Appearance.glass) 0.88f else 0.98f), shape)
-            .border(Dp.Hairline, if (isClassic) Color(0x2BFFFFFF) else c.strokeStrong.copy(alpha = 0.55f), shape)
+            .hairBorder(if (isClassic) Color(0x2BFFFFFF) else c.strokeStrong.copy(alpha = 0.55f), shape)
             .padding(4.dp),
     ) {
         if (target != null && selected >= 0) {
@@ -202,7 +207,7 @@ private fun CapsuleItem(item: NavItem, selected: Boolean, showName: Boolean, onP
                 .padding(horizontal = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(item.glyph, size = 18.dp, tint = tint)
+            NavIcon(item, size = 18.dp, tint = tint)
             AnimatedVisibility(
                 showName,
                 enter = fadeIn(FluentMotion.tweenIn(200)) + expandHorizontally(FluentMotion.tweenIn(260)),

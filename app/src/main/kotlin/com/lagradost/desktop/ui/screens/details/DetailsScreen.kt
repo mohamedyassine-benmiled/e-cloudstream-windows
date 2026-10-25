@@ -1,5 +1,7 @@
 package com.lagradost.desktop.ui.screens.details
 
+import com.lagradost.desktop.ui.fluent.hairBorder
+
 import com.lagradost.desktop.ui.fluent.smoothWheel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -115,6 +117,7 @@ import com.lagradost.desktop.ui.fluent.SectionHeader
 import com.lagradost.desktop.ui.fluent.Shelf
 import com.lagradost.desktop.ui.fluent.fluentClickable
 import com.lagradost.desktop.ui.fluent.rememberInteraction
+import com.lagradost.desktop.ui.fluent.reveal
 import com.lagradost.desktop.ui.Toasts
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.isActive
@@ -181,14 +184,17 @@ fun DetailsScreen(entry: Entry, route: Route.Details) {
         showSelectPopup(p)
     }
 
+    // the same load again (a title page that did not answer, or answered with a failure)
+    val reload = {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
+        vm.load(ctx, route.url, route.apiName, prefs.getBoolean(ctx.getString(R.string.show_fillers_key), false),
+            if (ctx.getApiDubstatusSettings().contains(DubStatus.Dubbed)) DubStatus.Dubbed else DubStatus.Subbed, null)
+        Unit
+    }
     Box(Modifier.fillMaxSize()) {
         when (val res = page) {
-            null, is Resource.Loading -> LoadingPage(route)
-            is Resource.Failure -> FailurePage(route, res.errorString) {
-                val prefs = PreferenceManager.getDefaultSharedPreferences(ctx)
-                vm.load(ctx, route.url, route.apiName, prefs.getBoolean(ctx.getString(R.string.show_fillers_key), false),
-                    if (ctx.getApiDubstatusSettings().contains(DubStatus.Dubbed)) DubStatus.Dubbed else DubStatus.Subbed, null)
-            }
+            null, is Resource.Loading -> LoadingPage(route, reload)
+            is Resource.Failure -> FailurePage(route, res.errorString, reload)
             is Resource.Success -> DetailsContent(vm, sync, route, res.value)
         }
         links?.let { LinkLoadingCard(it.linksLoaded, it.subsLoaded, { vm.skipLoading() }, { vm.cancelLinks() }) }
@@ -226,8 +232,11 @@ private fun showSelectPopup(p: SelectPopup) {
 // -------------------------------------------------------------------------------------------
 
 @Composable
-private fun LoadingPage(route: Route.Details) {
+private fun LoadingPage(route: Route.Details, retry: () -> Unit) {
     val c = Fluent.colors
+    // an extension that takes long to answer (StreamPlay asks several services for a title): after a few seconds the page says so and offers a way out
+    var slow by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { kotlinx.coroutines.delay(6_000); slow = true }
     Box(Modifier.fillMaxSize()) {
         com.lagradost.desktop.ui.components.SoftImage(route.poster, null, Modifier.fillMaxSize(), alpha = 0.35f)
         Box(Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color(0x66000000), c.layer))))
@@ -235,6 +244,13 @@ private fun LoadingPage(route: Route.Details) {
             ProgressRing(size = 48.dp)
             FText(route.name, style = Fluent.type.subtitle, maxLines = 2)
             FText("Loading details…", color = c.textSecondary)
+            if (slow) {
+                FText("${route.apiName} is slow to answer. The page opens as soon as it does.", style = Fluent.type.caption, color = c.textTertiary)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button("Try again", retry, icon = Icons.Refresh)
+                    Button("Back", { Navigator.back() })
+                }
+            }
         }
     }
 }
@@ -280,7 +296,7 @@ private fun LinkLoadingCard(links: Int, subs: Int, skip: () -> Unit, cancel: () 
 
 // -------------------------------------------------------------------------------------------
 
-private enum class DetailsTab(val label: String) { Episodes("Episodes"), Related("Related"), More("More like this"), Cast("Cast & crew"), Gallery("Gallery"), Reviews("Reviews"), About("Details") }
+private enum class DetailsTab(val label: String) { Episodes("Episodes"), Related("Related"), Recommended("Recommended"), More("More like this"), Cast("Cast & crew"), Gallery("Gallery"), Reviews("Reviews"), About("Details") }
 
 /**
  * A related title from AniList or TMDB belongs to no extension. Opening one searches the extension this page came from (the sources the
@@ -399,6 +415,9 @@ private fun DetailsContent(vm: ResultViewModel2, sync: SyncViewModel, route: Rou
     val related by androidx.compose.runtime.produceState<List<RelatedTitle>>(emptyList(), route.url, isAnime) {
         value = if (isAnime && com.lagradost.desktop.ui.fluent.Appearance.tmdbEnabled) runCatching { AnimeRelations.load(d.title, d.syncData) }.getOrDefault(emptyList()) else emptyList()
     }
+    val anilistRecs by androidx.compose.runtime.produceState<List<RelatedTitle>>(emptyList(), route.url, isAnime) {
+        value = if (isAnime && com.lagradost.desktop.ui.fluent.Appearance.tmdbEnabled) runCatching { AnimeRelations.recommendations(d.title, d.syncData) }.getOrDefault(emptyList()) else emptyList()
+    }
     val hideSpoilers = com.lagradost.desktop.ui.fluent.Appearance.hideSpoilers
 
     // an extension often sends an episode without its still, title or synopsis: TMDB's own are filled in (see withTmdbEpisodes for when)
@@ -426,6 +445,7 @@ private fun DetailsContent(vm: ResultViewModel2, sync: SyncViewModel, route: Rou
         val tabs = buildList {
             if (!isMovie) add(DetailsTab.Episodes)
             if (related.isNotEmpty()) add(DetailsTab.Related)
+            if (anilistRecs.isNotEmpty()) add(DetailsTab.Recommended)
             if (recs.isNotEmpty()) add(DetailsTab.More)
             if (cast.isNotEmpty() || tmdbCast.isNotEmpty() || d.actorsText.str() != null) add(DetailsTab.Cast)
             if ((tmdb?.backdrops?.size ?: 0) > 1) add(DetailsTab.Gallery)
@@ -440,12 +460,13 @@ private fun DetailsContent(vm: ResultViewModel2, sync: SyncViewModel, route: Rou
 
         LazyColumn(state = listState, modifier = Modifier.fillMaxSize().smoothWheel(listState), contentPadding = PaddingValues(bottom = 48.dp + com.lagradost.desktop.ui.shell.LocalDockInset.current)) {
             item(key = "header") {
-                Header(vm, shownData, route, wide, headerHeight, watch, favorite, subscribed, resume?.result ?: (movie as? Resource.Success)?.value?.second ?: (episodes as? Resource.Success)?.value?.firstOrNull(), resume?.progress?.progressLeft.str(), trailers.orEmpty().isNotEmpty() || tmdbTrailer != null, trailers?.firstOrNull()?.mirros?.firstOrNull()?.second ?: tmdbTrailer, tmdbLinks, tmdb,
+                Header(vm, shownData, route, wide, headerHeight, watch, favorite, subscribed, resume?.result ?: (movie as? Resource.Success)?.value?.second ?: (episodes as? Resource.Success)?.value?.firstOrNull(), resume?.progress?.progressLeft.str(), trailers.orEmpty().isNotEmpty() || tmdbTrailer != null, (trailers.orEmpty().flatMap { t -> t.mirros.map { it.second } } + listOfNotNull(tmdbTrailer)).distinct(), tmdbLinks, tmdb,
                     scroll = { if (listState.firstVisibleItemIndex == 0) listState.firstVisibleItemScrollOffset.toFloat() else Float.MAX_VALUE })
             }
             item(key = "trackers") { TrackerCard(sync) }
             if (tabs.isNotEmpty()) item(key = "tabs") {
-                Row(Modifier.fillMaxWidth().padding(horizontal = gutter).padding(top = 4.dp, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                // the part under the picture comes up a moment after it (the way NuvioDesktop lets a title page's content in)
+                Row(Modifier.reveal("details-tabs/" + route.url, 140).fillMaxWidth().padding(horizontal = gutter).padding(top = 4.dp, bottom = 20.dp), verticalAlignment = Alignment.CenterVertically) {
                     com.lagradost.desktop.ui.fluent.UnderlineTabs(tabs.map { it.label }, tabs.indexOf(shown).coerceAtLeast(0), { tab = tabs[it] }, Modifier.weight(1f))
                     if (shown == DetailsTab.Episodes) {
                         // the season packs an extension lists among the episodes are not counted as episodes
@@ -512,7 +533,7 @@ private fun DetailsContent(vm: ResultViewModel2, sync: SyncViewModel, route: Rou
                                 vm.cloudEpisodeIsRevealed(ep) ?: (i <= currentEpIdx || isWatched(ep) || ep.position > 0)
                             }.map { it.id }.toSet()
                             items(rows.size, key = { i -> "eprow-" + (rows[i].firstOrNull()?.id ?: i) + "-" + i }) { i ->
-                                Row(Modifier.fillMaxWidth().padding(horizontal = gutter).padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
+                                Row(Modifier.reveal("eprow/" + route.url + "/" + (rows[i].firstOrNull()?.id ?: i), 200 + i.coerceAtMost(6) * 60).fillMaxWidth().padding(horizontal = gutter).padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
                                     rows[i].forEach { ep -> Box(Modifier.weight(1f)) { EpisodeCard(vm, ep, d.backgroundPosterUrl ?: d.posterImage, d.posterHeaders, spoiler = openIds != null && ep.id !in openIds) } }
                                     repeat(columns - rows[i].size) { Box(Modifier.weight(1f)) }
                                 }
@@ -542,65 +563,60 @@ private fun DetailsContent(vm: ResultViewModel2, sync: SyncViewModel, route: Rou
                         FText("Prequels, sequels and other titles of this story, from AniList. Opening one searches ${route.apiName}; right-click it to search all extensions.", style = Fluent.type.caption, color = c.textTertiary)
                         related.chunked(perRow).forEach { row ->
                             Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                row.forEach { r -> PosterCard(r.card, { openRelated(r.card, route.apiName) }, w, subtitle = r.detail, menu = relatedMenu(r.card, route.apiName)) }
+                                row.forEachIndexed { i, r -> Box(Modifier.reveal("related/" + r.card.url, i * 45)) { PosterCard(r.card, { openRelated(r.card, route.apiName) }, w, subtitle = r.detail, menu = relatedMenu(r.card, route.apiName)) } }
+                            }
+                        }
+                    }
+                }
+                DetailsTab.Recommended -> item(key = "anilist-recs") {
+                    val w = com.lagradost.desktop.ui.fluent.Appearance.posterSize.width
+                    val perRow = ((pageWidth - gutter * 2 + 16.dp) / (w + 16.dp)).toInt().coerceAtLeast(2)
+                    var added by remember { mutableStateOf(setOf<Int>()) }
+                    val scope = androidx.compose.runtime.rememberCoroutineScope()
+                    Column(Modifier.padding(horizontal = gutter), verticalArrangement = Arrangement.spacedBy(22.dp)) {
+                        FText("What people who liked this also liked, from AniList. Opening one searches ${route.apiName}.", style = Fluent.type.caption, color = c.textTertiary)
+                        anilistRecs.chunked(perRow).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+                                row.forEach { r ->
+                                    Column(Modifier.width(w), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        PosterCard(r.card, { openRelated(r.card, route.apiName) }, w, subtitle = r.detail, menu = relatedMenu(r.card, route.apiName))
+                                        val done = r.order in added
+                                        Button(
+                                            if (done) "On your Planning list" else "Add to Planning",
+                                            {
+                                                if (!done) scope.launch {
+                                                    val ok = runCatching { AnimeRelations.addToPlanning(r.order) }.getOrDefault(false)
+                                                    if (ok) added = added + r.order
+                                                    Toasts.show(if (ok) "Added to your Planning list on AniList" else "Sign in to AniList in Settings first", !ok)
+                                                }
+                                            },
+                                            kind = ButtonKind.Standard, icon = if (done) Icons.Check else Icons.Add, height = 30.dp, modifier = Modifier.fillMaxWidth(),
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
                 }
                 DetailsTab.More -> item(key = "recs") {
-                    val w = com.lagradost.desktop.ui.fluent.Appearance.posterSize.width
-                    val perRow = ((pageWidth - gutter * 2 + 16.dp) / (w + 16.dp)).toInt().coerceAtLeast(2)
-                    Column(Modifier.padding(horizontal = gutter), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                        recs.chunked(perRow).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                row.forEach { card -> PosterCard(card, { openRelated(card, route.apiName) }, w, menu = relatedMenu(card, route.apiName)) }
-                            }
-                        }
-                    }
+                    MoreLikeThis(d.title, recs, pageWidth, gutter, { openRelated(it, route.apiName) }, { relatedMenu(it, route.apiName) })
                 }
                 DetailsTab.Gallery -> tmdb?.let { t -> item(key = "gallery") { TmdbGallery(t, pageWidth) } }
-                DetailsTab.About -> tmdb?.let { t -> item(key = "about") { TmdbStrip(t) } }
-                DetailsTab.Reviews -> tmdb?.let { t -> item(key = "reviews") { TmdbReviews(t.reviews) } }
+                DetailsTab.About -> tmdb?.let { t -> item(key = "about") { TmdbStrip(t, pageWidth) } }
+                DetailsTab.Reviews -> tmdb?.let { t -> item(key = "reviews") { TmdbReviews(t.reviews, pageWidth) } }
                 DetailsTab.Cast -> item(key = "cast") {
                     Column(Modifier.padding(horizontal = gutter)) {
-                        val perRow = ((pageWidth - gutter * 2) / 150.dp).toInt().coerceAtLeast(3)
-                        // TMDB's cast has real photos and opens the person's page; the extension's list is the fallback
-                        if (tmdbCast.isNotEmpty()) tmdbCast.chunked(perRow).forEach { row ->
-                            Row(Modifier.padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                                row.forEach { a -> CastCard(a.name, a.image, a.role) { Navigator.go(Route.Person(a.id, a.name, a.image)) } }
-                            }
-                        } else cast.take(60).chunked(perRow).forEach { row ->
-                            Row(Modifier.padding(bottom = 22.dp), horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                                row.forEach { a -> CastCard(a.actor.name, a.actor.image, a.roleString) }
-                            }
+                        // the seasons TMDB has credits for: the numbers the title page lists (Specials is 0), or 1..n of TMDB's own count
+                        val castSeasons = remember(tmdb, seasons) {
+                            val t = tmdb
+                            if (t == null || t.isMovie) emptyList() else ((if (seasons.orEmpty().any { it.second == 0 }) listOf(0) else emptyList()) + (1..(t.seasons ?: 0)).toList())
                         }
-                        d.actorsText.str()?.let { text -> FText(text, color = c.textSecondary, modifier = Modifier.padding(vertical = 8.dp).widthIn(max = 900.dp)) }
+                        CastAndCrewTab(tmdb, cast, d.actorsText.str(), d.title, castSeasons)
                     }
                 }
                 null -> {}
             }
         }
-    }
-}
-
-@Composable
-private fun CastCard(name: String, image: String?, role: String?, onClick: (() -> Unit)? = null) {
-    val c = Fluent.colors
-    val source = rememberInteraction()
-    val hovered by source.collectIsHoveredAsState()
-    val scale by androidx.compose.animation.core.animateFloatAsState(if (hovered) 1.03f else 1f, com.lagradost.desktop.ui.fluent.FluentMotion.tweenIn(200))
-    Column(Modifier.width(132.dp).hoverable(source).let { if (onClick != null) it.fluentClickable(source, true, RoundedCornerShape(FluentShapes.card), Role.Button, onClick) else it }, horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(
-            Modifier.size(112.dp).graphicsLayer { scaleX = scale; scaleY = scale }.clip(CircleShape).background(c.layer)
-                .border(androidx.compose.ui.unit.Dp.Hairline, if (hovered) c.strokeStrong else c.stroke, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            FText(name.split(' ').mapNotNull { it.firstOrNull()?.uppercase() }.take(2).joinToString(""), style = Fluent.type.subtitle, color = c.textTertiary)
-            RemoteImage(image, null, name, Modifier.fillMaxSize(), ContentScale.Crop)
-        }
-        Box(Modifier.height(10.dp))
-        FText(name, style = Fluent.type.bodyStrong, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        role?.takeIf { it.isNotBlank() }?.let { FText(it, style = Fluent.type.caption, color = c.textTertiary, maxLines = 2, textAlign = androidx.compose.ui.text.style.TextAlign.Center) }
     }
 }
 
@@ -620,7 +636,7 @@ private fun Header(
     playEpisode: ResultEpisode?,
     resumeText: String?,
     hasTrailer: Boolean,
-    trailerUrl: String?,
+    trailerUrls: List<String>,
     links: List<Pair<String, String>>,
     tmdb: com.lagradost.desktop.tmdb.TmdbInfo?,
     scroll: () -> Float = { 0f },
@@ -691,7 +707,7 @@ private fun Header(
             }
             d.vpnText.str()?.let { FText(it, style = Fluent.type.caption, color = c.caution) }
             Box(Modifier.height(4.dp))
-            ActionRow(vm, d, watch, favorite, subscribed, playEpisode, resumeText, hasTrailer, trailerUrl, links)
+            ActionRow(vm, d, watch, favorite, subscribed, playEpisode, resumeText, hasTrailer, trailerUrls, links)
         }
     }
 }
@@ -711,7 +727,7 @@ private fun UpNextCard(vm: ResultViewModel2, ep: ResultEpisode, image: String?, 
             .width(330.dp)
             .clip(shape)
             .background(if (hovered) Color(0xE6141418) else Color(0xCC0B0B10), shape)
-            .border(Dp.Hairline, Color(0x33FFFFFF), shape)
+            .hairBorder(Color(0x33FFFFFF), shape)
             .fluentClickable(source, true, shape, Role.Button) { vm.handleAction(EpisodeClickEvent(ACTION_CLICK_DEFAULT, ep)) }
             .padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -754,7 +770,7 @@ private fun ActionRow(
     playEpisode: ResultEpisode?,
     resumeText: String?,
     hasTrailer: Boolean,
-    trailerUrl: String?,
+    trailerUrls: List<String>,
     links: List<Pair<String, String>>,
 ) {
     val ctx = DesktopBootstrap.activity
@@ -787,7 +803,15 @@ private fun ActionRow(
                 )
             }
         }
-        if (hasTrailer && trailerUrl != null) com.lagradost.desktop.ui.fluent.GlassCircleButton(Icons.Video, "Watch trailer", { playTrailer(trailerUrl) }, size = 50.dp)
+        // new-episode notifications: one tap, no longer only in the ⋯ menu
+        subscribed?.let { sub ->
+            com.lagradost.desktop.ui.fluent.GlassCircleButton(
+                if (sub) Icons.Notification else Icons.Bell, if (sub) "Notifications on: you are told about new episodes" else "Get notified about new episodes",
+                { vm.toggleSubscriptionStatus(ctx) { new -> if (new != null) Toasts.show(if (new) "You will be told about new episodes" else "Notifications turned off", false) } },
+                active = sub, size = 50.dp,
+            )
+        }
+        if (hasTrailer && trailerUrls.isNotEmpty()) com.lagradost.desktop.ui.fluent.GlassCircleButton(Icons.Video, "Watch trailer", { playTrailer(trailerUrls) }, size = 50.dp)
         Box {
             com.lagradost.desktop.ui.fluent.GlassCircleButton(Icons.More, "More", { moreOpen = true }, size = 50.dp)
             if (moreOpen) {
@@ -818,17 +842,26 @@ private fun ActionRow(
     }
 }
 
-/** The trailer in the app's own player; the page in the browser when its video cannot be taken out of it */
-private fun playTrailer(url: String) {
+/**
+ * The trailer in the app's own player. The extension's own trailer addresses come first, then TMDB's YouTube one; each is tried until one gives a
+ * picture (the library's extractor, then YouTube's own player service). Only when none does, the first page opens in the browser.
+ */
+private fun playTrailer(urls: List<String>) {
     Toasts.show("Loading the trailer…", false)
     kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-        val found = java.util.Collections.synchronizedList(ArrayList<com.lagradost.cloudstream3.utils.ExtractorLink>())
-        kotlinx.coroutines.withTimeoutOrNull(20_000) { runCatching { com.lagradost.cloudstream3.utils.loadExtractor(url, null, {}, { found.add(it) }) } }
-        if (found.isEmpty()) { DesktopPlatform.openExternalBrowser(url); return@launch }
-        // up to 1080p (a 4K AV1 trailer asks a lot of the PC), H.264 first at each height
-        val fit = found.filter { it.quality in 1..1080 }.ifEmpty { found }
-        val best = fit.sortedWith(compareByDescending<com.lagradost.cloudstream3.utils.ExtractorLink> { it.quality }.thenByDescending { it.name.contains("H264") }).take(6)
-        Navigator.go(Route.Player(com.lagradost.cloudstream3.ui.player.ExtractorLinkGenerator(best, emptyList()), 0, null))
+        for (url in urls.take(4)) {
+            val found = java.util.Collections.synchronizedList(ArrayList<com.lagradost.cloudstream3.utils.ExtractorLink>())
+            kotlinx.coroutines.withTimeoutOrNull(12_000) { runCatching { com.lagradost.cloudstream3.utils.loadExtractor(url, null, {}, { found.add(it) }) } }
+            // the library's extractor breaks whenever YouTube changes something: the same streams are asked for the way YouTube's phone app does
+            if (found.isEmpty() && com.lagradost.desktop.net.YouTubeStreams.isYouTube(url)) kotlinx.coroutines.withTimeoutOrNull(15_000) { found.addAll(com.lagradost.desktop.net.YouTubeStreams.links(url)) }
+            if (found.isEmpty()) continue
+            // up to 1080p (a 4K AV1 trailer asks a lot of the PC), H.264 first at each height
+            val fit = found.filter { it.quality in 1..1080 }.ifEmpty { found }
+            val best = fit.sortedWith(compareByDescending<com.lagradost.cloudstream3.utils.ExtractorLink> { it.quality }.thenByDescending { it.name.contains("H264") }).take(6)
+            Navigator.go(Route.Player(com.lagradost.cloudstream3.ui.player.ExtractorLinkGenerator(best, emptyList()), 0, null))
+            return@launch
+        }
+        urls.firstOrNull()?.let { DesktopPlatform.openExternalBrowser(it) }
     }
 }
 
@@ -890,7 +923,7 @@ private fun EpisodeCard(vm: ResultViewModel2, ep: ResultEpisode, fallback: Strin
             Box(
                 Modifier.fillMaxWidth().aspectRatio(16f / 9f)
                     .graphicsLayer { scaleX = lift; scaleY = lift }
-                    .clip(shape).background(c.card).border(androidx.compose.ui.unit.Dp.Hairline, if (hovered) c.strokeStrong else c.stroke, shape),
+                    .clip(shape).background(c.card).hairBorder(if (hovered) c.strokeStrong else c.stroke, shape),
             ) {
                 if (pack) {
                     // an archive, not a picture: the folder, and what it is (quality, size) in big letters
@@ -910,7 +943,7 @@ private fun EpisodeCard(vm: ResultViewModel2, ep: ResultEpisode, fallback: Strin
                 if (covered) {
                     Box(Modifier.matchParentSize().background(Color(0x66000000)))
                     Row(
-                        Modifier.align(Alignment.Center).clip(RoundedCornerShape(50)).background(Color(0x99000000)).border(androidx.compose.ui.unit.Dp.Hairline, Color(0x40FFFFFF), RoundedCornerShape(50))
+                        Modifier.align(Alignment.Center).clip(RoundedCornerShape(50)).background(Color(0x99000000)).hairBorder(Color(0x40FFFFFF), RoundedCornerShape(50))
                             .fluentClickable(rememberInteraction(), true, RoundedCornerShape(50), Role.Button) { uncovered = true }
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -925,7 +958,7 @@ private fun EpisodeCard(vm: ResultViewModel2, ep: ResultEpisode, fallback: Strin
                 }
                 if (watched) Box(Modifier.align(Alignment.TopEnd).padding(10.dp).size(24.dp).background(c.success, CircleShape), contentAlignment = Alignment.Center) { Icon(Icons.Check, size = 12.dp, tint = Color.Black) }
                 if (glow > 0.01f && !covered) Box(Modifier.matchParentSize().graphicsLayer { alpha = glow }.background(Color(0x4D000000)), contentAlignment = Alignment.Center) {
-                    Box(Modifier.size(48.dp).background(Color(0x33FFFFFF), CircleShape).border(androidx.compose.ui.unit.Dp.Hairline, Color(0x66FFFFFF), CircleShape), contentAlignment = Alignment.Center) { Icon(if (pack) Icons.Link else Icons.Play, size = 18.dp, tint = Color.White) }
+                    Box(Modifier.size(48.dp).background(Color(0x33FFFFFF), CircleShape).hairBorder(Color(0x66FFFFFF), CircleShape), contentAlignment = Alignment.Center) { Icon(if (pack) Icons.Link else Icons.Play, size = 18.dp, tint = Color.White) }
                 }
                 ep.runTime?.takeIf { it > 0 && !pack }?.let { rt ->
                     Box(Modifier.align(Alignment.BottomEnd).padding(10.dp).background(Color(0xB3000000), RoundedCornerShape(50)).padding(horizontal = 8.dp, vertical = 1.dp)) {
@@ -938,7 +971,7 @@ private fun EpisodeCard(vm: ResultViewModel2, ep: ResultEpisode, fallback: Strin
             }
             Box(Modifier.height(10.dp))
             // the whole title (up to three lines, the rest in a tooltip), with the rating and filler mark under it and the menu beside it
-            val title = if (packInfo != null) packInfo.first else if (covered) "Episode ${ep.episode}" else ep.name?.takeIf { it.isNotBlank() } ?: "Episode ${ep.episode}"
+            val title = if (packInfo != null) packInfo.first else if (covered && com.lagradost.desktop.ui.fluent.Appearance.hideSpoilerTitles) "Episode ${ep.episode}" else ep.name?.takeIf { it.isNotBlank() } ?: "Episode ${ep.episode}"
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Column(Modifier.weight(1f)) {
                     com.lagradost.desktop.ui.fluent.Tooltip(title) {

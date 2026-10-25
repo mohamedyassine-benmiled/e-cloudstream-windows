@@ -25,7 +25,7 @@ Automatic/manual app updates use **this fork's release repository**, never cs3d'
 - Native **Watching – New Episodes**: launches the latest eligible episode in the saved audio edition at **00:00** after revalidation.
 - Cloud-aware spoiler handling and Windows touchscreen swipe/player controls.
 
-Account features require compatible extensions, currently AniKoto from [the Eimon extension repository](https://github.com/mohamedyassine-benmiled/eimon-cloudstream-repo). Ordinary extensions continue to work but do not automatically gain account integration. Website login, episode matching and optional uploads remain in the extension. Opening details/rows does not advance website progress. Existing optional uploads remain position-based, not immediate pause/exit reporting, and have no durable offline queue.
+Account features are available to extensions that advertise the required host capabilities, such as remote-list reading, exact resume, cloud title progress, and latest-episode discovery. Other extensions continue to work normally without these optional features. Website login, episode matching and optional uploads remain extension responsibilities. Opening details/rows does not advance website progress. Existing optional uploads remain position-based, not immediate pause/exit reporting, and have no durable offline queue.
 
 ## Development
 
