@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.heightIn
 import com.lagradost.desktop.ui.fluent.Chip
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -204,25 +205,26 @@ fun DetailsScreen(entry: Entry, route: Route.Details) {
 private fun showSelectPopup(p: SelectPopup) {
     val ctx = DesktopBootstrap.activity
     val title = p.getTitle(ctx)
+    if (p is SelectPopup.SelectLinks) { showLinkPicker(p, title); return }
     val options = p.getOptions(ctx)
     var done = false
     Overlays.show(
         Overlays.Dialog(
-            title = title, close = "Cancel", width = 420.dp,
+            title = title, close = "Cancel", width = 520.dp,
             onClose = { if (!done) { done = true; p.callback(null) } },
         ) { dismiss ->
             LazyColumn(Modifier.fillMaxWidth()) {
                 items(options.size) { i ->
                     val source = rememberInteraction()
                     val hovered by source.collectIsHoveredAsState()
-                    val shape = RoundedCornerShape(4.dp)
+                    val shape = RoundedCornerShape(FluentShapes.row)
                     Box(
-                        Modifier.fillMaxWidth().height(40.dp).clip(shape)
+                        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape)
                             .background(if (hovered) Fluent.colors.subtleHover else Color.Transparent, shape)
                             .fluentClickable(source, true, shape, Role.Button) { if (!done) { done = true; dismiss(); p.callback(i) } }
-                            .padding(horizontal = 12.dp),
+                            .padding(horizontal = 14.dp, vertical = 8.dp),
                         contentAlignment = Alignment.CenterStart,
-                    ) { FText(options[i], maxLines = 1) }
+                    ) { FText(options[i], maxLines = 2) }
                 }
             }
         },
@@ -1022,6 +1024,8 @@ private fun TrackerCard(sync: SyncViewModel) {
     @Suppress("UNUSED_EXPRESSION") version
     val names = sync.synced.value.orEmpty().filter { it.isSynced && it.hasAccount }.map { it.name }
     if (names.isEmpty()) return
+    // a service that says it is down (AniList was switched off for days in October 2026): its words, and no "Save" that would only fail
+    val down = names.mapNotNull { n -> com.lagradost.desktop.net.ServiceOutage.notes[n]?.message }
     val user = sync.userData.value
     val status = (user as? Resource.Success)?.value
     val total = status?.maxEpisodes ?: (sync.metadata.value as? Resource.Success)?.value?.totalEpisodes
@@ -1032,6 +1036,7 @@ private fun TrackerCard(sync: SyncViewModel) {
     ) {
         Column(Modifier.weight(1f)) {
             FText("Tracking on ${names.joinToString(" · ")}", style = Fluent.type.bodyStrong, color = c.textSecondary, maxLines = 1)
+            down.firstOrNull()?.let { FText(it + " Changes are not saved until it answers.", style = Fluent.type.caption, color = c.caution, maxLines = 2) }
         }
         when {
             user is Resource.Loading -> ProgressRing(size = 22.dp, strokeWidth = 2.dp)
@@ -1044,7 +1049,7 @@ private fun TrackerCard(sync: SyncViewModel) {
                     FText("${status.watchedEpisodes ?: 0}${total?.let { " / $it" } ?: ""} ep", Modifier.padding(horizontal = 6.dp), maxLines = 1, softWrap = false)
                     IconButton(Icons.ChevronRightSmall, { sync.setEpisodesDelta(1) }, tooltip = "One episode more", size = 32.dp, iconSize = 12.dp)
                 }
-                Button("Save", { sync.publishUserData() }, kind = ButtonKind.Accent, height = 36.dp)
+                Button("Save", { sync.publishUserData() }, kind = ButtonKind.Accent, enabled = down.size < names.size, height = 36.dp)
             }
             else -> FText("Not found on these services", style = Fluent.type.caption, color = c.textTertiary)
         }

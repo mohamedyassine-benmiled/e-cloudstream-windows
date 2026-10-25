@@ -73,6 +73,7 @@ import com.lagradost.desktop.ui.components.UiImageView
 import com.lagradost.desktop.ui.fluent.Appearance
 import com.lagradost.desktop.ui.fluent.Backdrop
 import com.lagradost.desktop.ui.fluent.Themes
+import com.lagradost.desktop.ui.fluent.Skins
 import com.lagradost.desktop.ui.fluent.FText
 import com.lagradost.desktop.ui.fluent.Fluent
 import com.lagradost.desktop.ui.fluent.FluentMotion
@@ -204,18 +205,28 @@ fun AppShell() {
     // (only when "Hide the dock while scrolling" is on in Settings)
     val dockShown by animateFloatAsState(if (Appearance.dockAutoHide && ShellState.dockHidden && !com.lagradost.desktop.ui.fluent.InputMode.touchUi) 0f else 1f, FluentMotion.tweenIn(220), label = "dockShown")
     LaunchedEffect(Navigator.current.id) { ShellState.dockHidden = false }
+    // Arabic (and the other right-to-left languages): the screens are laid out from the right; the title bar above stays as Windows draws it
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalLayoutDirection provides if (com.lagradost.desktop.i18n.Tr.rtl) androidx.compose.ui.unit.LayoutDirection.Rtl else androidx.compose.ui.unit.LayoutDirection.Ltr,
+    ) {
     Box(Modifier.fillMaxSize().background(c.bg)) {
         ScreenWarmup()
         SupportPrompt.Effect()
         if (Navigator.current.route is Route.Player || Navigator.current.route is Route.Setup) {
-            // the player and the setup wizard own the whole window
-            PageHost()
+            // the player and the setup wizard own the whole window; the player keeps the usual left-to-right order of a video player (time line, buttons)
+            if (Navigator.current.route is Route.Player) androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr,
+            ) { PageHost() } else PageHost()
         } else {
             AmbientBackdrop()
             val position = Appearance.navPosition
             val style = Appearance.navStyle
             val railRoom = if (style == NavStyle.Labels) NavPaneOpen.dp else NavPaneCompact.dp
-            when (position) {
+            val skin = Skins.spec
+            // the complete interface of a special theme (Netflix): its own navigation over a page that runs edge to edge
+            if (skin != null) {
+                ContentArea(RoundedCornerShape(0.dp), edge = true)
+            } else when (position) {
                 // edge to edge: the page runs under the floating bar (a capsule at the top) or the floating dock (a pill at the left)
                 NavPosition.Floating -> ContentArea(RoundedCornerShape(0.dp), edge = true)
                 NavPosition.Dock -> {
@@ -259,6 +270,7 @@ fun AppShell() {
         if (com.lagradost.desktop.tools.FrameStats.enabled) com.lagradost.desktop.tools.GpuBenchLayer()
         com.lagradost.desktop.ui.CloudflareSolveBar()
     }
+    }
 }
 
 /** Artwork colours behind everything: the page's artwork decoded tiny and stretched, under a scrim */
@@ -300,7 +312,8 @@ private fun ContentArea(shape: Shape, topNav: Boolean = false, edge: Boolean = f
         ) {
             androidx.compose.runtime.CompositionLocalProvider(LocalDockInset provides (if (dock) DockInset else 0.dp)) { PageHost() }
         }
-        if (Appearance.navPosition == NavPosition.Floating) FloatingTopBar() else TopBar(topNav)
+        val skin = Skins.spec
+        if (skin != null) SkinTopBar(skin) else if (Appearance.navPosition == NavPosition.Floating) FloatingTopBar() else TopBar(topNav)
     }
 }
 
@@ -366,10 +379,13 @@ private fun PageHost() {
             when {
                 // the video page has a window of its own (a heavyweight canvas) that no fade or slide reaches: it stood there, grey or white, while the page faded
                 // in around it. Into and out of the video there is no motion at all.
-                targetState.route is Route.Player || initialState.route is Route.Player -> androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
+                // Into the video: the page we leave dissolves to the black of the video page (which lies under it and takes no motion itself, so the video's
+                // window is not asked to fade); out of it nothing moves. Before it was a hard cut from a bright page to black.
+                targetState.route is Route.Player -> (androidx.compose.animation.EnterTransition.None togetherWith fadeOut(FluentMotion.tweenOut(FluentMotion.FAST + 40))).apply { targetContentZIndex = -1f }
+                initialState.route is Route.Player -> androidx.compose.animation.EnterTransition.None togetherWith androidx.compose.animation.ExitTransition.None
                 // only what moves cheaply: a fade and a short rise (a scale of the whole page redrew it at another size on every frame), a moment late
-                Navigator.lastWasBack -> fadeIn(FluentMotion.tweenInAfter(220, 30)) togetherWith fadeOut(FluentMotion.tweenOut(90))
-                else -> (fadeIn(FluentMotion.tweenInAfter(240, 30)) + slideInVertically(FluentMotion.tweenSoftAfter(440, 30)) { 28 }) togetherWith fadeOut(FluentMotion.tweenOut(90))
+                Navigator.lastWasBack -> fadeIn(FluentMotion.tweenInAfter(FluentMotion.BASE, 20)) togetherWith fadeOut(FluentMotion.tweenOut(70))
+                else -> (fadeIn(FluentMotion.tweenInAfter(FluentMotion.BASE + 20, 20)) + slideInVertically(FluentMotion.tweenSoftAfter(FluentMotion.SLOW, 20)) { 16 }) togetherWith fadeOut(FluentMotion.tweenOut(70))
             }
         },
         label = "page",
@@ -743,15 +759,17 @@ private fun DockItem(item: NavItem) {
 }
 
 @Composable
-internal fun AccountAvatar() {
+internal fun AccountAvatar(shape: androidx.compose.ui.graphics.Shape = CircleShape, onClick: () -> Unit = { showAccountPicker() }) {
     val c = Fluent.colors
     val vm = appVm<HomeViewModel>()
     val account by vm.currentAccount.observeAsState()
     LaunchedEffect(Unit) { vm.currentAccount.value ?: runCatching { com.lagradost.cloudstream3.utils.DataStoreHelper.getCurrentAccount() }.getOrNull()?.let { vm.currentAccount.postValue(it) } }
     val a = account
-    Box(Modifier.size(32.dp).clip(CircleShape).background(c.control).hairBorder(c.stroke, CircleShape).noWindowDrag("avatar").fluentClickable(rememberInteraction(), true, CircleShape, Role.Button) { showAccountPicker() }, contentAlignment = Alignment.Center) {
+    val avatarSource = rememberInteraction()
+    val avatarHovered by avatarSource.collectIsHoveredAsState()
+    Box(Modifier.size(32.dp).clip(shape).background(c.control).hairBorder(c.stroke, shape).noWindowDrag("avatar").fluentClickable(avatarSource, true, shape, Role.Button, onClick), contentAlignment = Alignment.Center) {
         if (a != null) {
-            ProfileAvatar(a, 32.dp)
+            ProfileAvatar(a, 32.dp, playing = avatarHovered, shape = shape)
         } else {
             FText("?", color = c.textSecondary)
         }
@@ -766,7 +784,7 @@ private fun AccountButton(expanded: Boolean) {
     LaunchedEffect(Unit) { vm.currentAccount.value ?: runCatching { com.lagradost.cloudstream3.utils.DataStoreHelper.getCurrentAccount() }.getOrNull()?.let { vm.currentAccount.postValue(it) } }
     val a = account
     val source = rememberInteraction()
-    val shape = RoundedCornerShape(FluentShapes.control)
+    val shape = RoundedCornerShape(FluentShapes.row)
     Row(
         Modifier.padding(horizontal = 4.dp, vertical = 1.dp).fillMaxWidth().height(44.dp).clip(shape)
             .background(if (source.collectIsHoveredAsState().value) c.subtleHover else Color.Transparent, shape)
@@ -818,7 +836,7 @@ private fun ToastLayer() {
 }
 
 internal val brandLogo by lazy {
-    runCatching { androidx.compose.ui.graphics.painter.BitmapPainter(Thread.currentThread().contextClassLoader.getResourceAsStream("app-icon.png")!!.use { androidx.compose.ui.res.loadImageBitmap(it) }) }.getOrNull()
+    runCatching { androidx.compose.ui.graphics.painter.BitmapPainter(Thread.currentThread().contextClassLoader.getResourceAsStream("app-icon.png")!!.use { androidx.compose.ui.res.loadImageBitmap(it) }, filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium) }.getOrNull()
 }
 
 /** The app's mark at the top of the rail; the name joins it when the rail is open */

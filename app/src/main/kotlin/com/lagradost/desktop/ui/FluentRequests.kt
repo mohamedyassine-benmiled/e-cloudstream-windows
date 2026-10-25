@@ -117,7 +117,7 @@ private fun showSelection(r: DesktopDialogs.Request.Selection) {
                     itemsIndexed(r.items) { index, item ->
                         val source = rememberInteraction()
                         val hovered by source.collectIsHoveredAsState()
-                        val shape = RoundedCornerShape(4.dp)
+                        val shape = RoundedCornerShape(com.lagradost.desktop.ui.fluent.FluentShapes.row)
                         val on = index in selected
                         Row(
                             Modifier.fillMaxWidth().clip(shape).background(if ((on && !instant) || hovered) c.subtleHover else Color.Transparent, shape)

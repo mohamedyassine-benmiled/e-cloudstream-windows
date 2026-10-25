@@ -114,7 +114,7 @@ private fun AlertBody(
                 itemsIndexed(items) { index, text ->
                     val source = rememberInteraction()
                     val hovered by source.collectIsHoveredAsState()
-                    val shape = RoundedCornerShape(4.dp)
+                    val shape = RoundedCornerShape(com.lagradost.desktop.ui.fluent.FluentShapes.row)
                     val on = if (multi) checked.getOrElse(index) { false } else selected == index
                     Row(
                         Modifier.fillMaxWidth().clip(shape).background(if (hovered) c.subtleHover else Color.Transparent, shape)

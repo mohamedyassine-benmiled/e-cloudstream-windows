@@ -317,6 +317,7 @@ object UpdateCheck {
     private var autoCheckJob: Job? = null
 
     fun startAutoCheck() {
+        // started twice (a window that is made again), it would check twice as often and show the dialog twice
         if (autoCheckJob?.isActive == true) return
         autoCheckJob = scope.launch {
             Startup.revealed.await()
@@ -472,6 +473,13 @@ object UpdateCheck {
     }
 
     /** Only the repository's own release files are downloaded (a test build with its own update address may use any) */
+    private fun trusted(url: String): Boolean = apiOverride != null || trustedRepositoryDownload(url)
+
+    /**
+     * A release file of the repository on github.com, nothing else: https, the host exactly (not `github.com.evil.test`, no `user@` in front of it), no port, no
+     * query or fragment, and no `..` that would climb out of the release folder to another repository's files. (A plain `startsWith` accepted the last two.)
+     * Taken from the e-cloudstream fork.
+     */
     internal fun trustedRepositoryDownload(url: String): Boolean = runCatching {
         val uri = java.net.URI(url)
         uri.scheme == "https" && uri.host == "github.com" && uri.port == -1 && uri.userInfo == null &&
@@ -479,8 +487,6 @@ object UpdateCheck {
             uri.rawPath.startsWith("/${AppInfo.REPO}/releases/download/") &&
             uri.path.split('/').none { it == "." || it == ".." }
     }.getOrDefault(false)
-
-    private fun trusted(url: String): Boolean = apiOverride != null || trustedRepositoryDownload(url)
 
     fun cancelDownload() {
         downloadJob?.cancel()

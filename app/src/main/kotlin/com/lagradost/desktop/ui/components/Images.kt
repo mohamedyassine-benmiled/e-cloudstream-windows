@@ -44,10 +44,13 @@ fun RemoteImage(
     alpha: Float = 1f,
     colorFilter: ColorFilter? = null,
     alignment: androidx.compose.ui.Alignment = androidx.compose.ui.Alignment.Center,
+    /** told the picture's size in pixels once it is loaded (a layout that follows its shape) */
+    onSize: ((width: Int, height: Int) -> Unit)? = null,
 ) {
     val request = rememberImageRequest(url, headers) ?: return
     AsyncImage(
         model = request,
+        onSuccess = onSize?.let { cb -> { state -> cb(state.result.image.width, state.result.image.height) } },
         alignment = alignment,
         contentDescription = contentDescription,
         modifier = modifier,
@@ -104,7 +107,7 @@ fun UiImageView(
 
 
 private val appLogo by lazy {
-    runCatching { androidx.compose.ui.graphics.painter.BitmapPainter(Thread.currentThread().contextClassLoader.getResourceAsStream("app-icon.png")!!.use { androidx.compose.ui.res.loadImageBitmap(it) }) }.getOrNull()
+    runCatching { androidx.compose.ui.graphics.painter.BitmapPainter(Thread.currentThread().contextClassLoader.getResourceAsStream("app-icon.png")!!.use { androidx.compose.ui.res.loadImageBitmap(it) }, filterQuality = androidx.compose.ui.graphics.FilterQuality.Medium) }.getOrNull()
 }
 
 /** The app's logo as a painter (null if the resource is missing) */

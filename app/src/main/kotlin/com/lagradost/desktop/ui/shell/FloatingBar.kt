@@ -38,6 +38,8 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.lagradost.desktop.ui.fluent.LeftToRight
+import com.lagradost.desktop.ui.fluent.visual
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
@@ -101,7 +103,8 @@ internal fun FloatingTopBar() {
                 IconButton(Icons.Back, { Navigator.back() }, Modifier.noWindowDrag("topBack"), enabled = Navigator.canGoBack, tooltip = "Back (Alt+Left)")
                 Box(Modifier.width(6.dp))
             }
-            brandLogo?.let { androidx.compose.foundation.Image(it, "CloudStream", Modifier.size(26.dp)) }
+            // a window with its title bar above the app already shows the logo there: not twice
+            if (!com.lagradost.desktop.platform.WinChrome.windowedBar) brandLogo?.let { androidx.compose.foundation.Image(it, "CloudStream", Modifier.size(26.dp)) }
             Box(Modifier.weight(1f))
             // a window of half a screen (snapped, or the smallest): the search and reload buttons would sit under the capsule; Ctrl+K and the Search page remain
             if (onHome) {
@@ -128,7 +131,7 @@ internal fun FloatingTopBar() {
  * Ctrl+K opens it too, and it closes when it loses the focus.
  */
 @Composable
-private fun ExtensionSearch(provider: String) {
+internal fun ExtensionSearch(provider: String) {
     if (ShellState.homeSearchOpen) {
         androidx.compose.runtime.LaunchedEffect(Unit) { runCatching { ShellState.searchFocus.requestFocus() } }
         // it closes with its button, Esc, a search, or by itself when it loses the focus with nothing typed
@@ -150,7 +153,7 @@ private fun NavCapsule(compact: Boolean, modifier: Modifier) {
     // where each item sits inside the capsule (px), so the pill can glide between them
     val spots = remember { mutableStateMapOf<Int, Pair<Float, Float>>() }
     val target = spots[selected]
-    val spec = if (Appearance.motion == com.lagradost.desktop.ui.fluent.Motion.Off) androidx.compose.animation.core.snap<Float>() else spring(dampingRatio = 0.78f, stiffness = 420f)
+    val spec = com.lagradost.desktop.ui.fluent.FluentMotion.springSoft<Float>()
     val pillX by animateFloatAsState(target?.first ?: 0f, spec, label = "pillX")
     val pillW by animateFloatAsState(target?.second ?: 0f, spec, label = "pillW")
     val density = LocalDensity.current
@@ -158,6 +161,8 @@ private fun NavCapsule(compact: Boolean, modifier: Modifier) {
     val coloredPill = Appearance.navAccentPill
     val isClassic = Appearance.theme == "classic"
     val pillShape = RoundedCornerShape(19.dp)
+    // laid out left to right in every language (the pill glides to a measured x); in Arabic the items come in the opposite order
+    LeftToRight { rtl ->
     Box(
         // a maximized window has no title bar of its own: the top band answers Windows as a caption (drag, double click) unless a control says otherwise
         modifier
@@ -178,11 +183,15 @@ private fun NavCapsule(compact: Boolean, modifier: Modifier) {
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            items.forEachIndexed { i, item ->
-                if (i == navItems.size) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(18.dp).background(Color(0x26FFFFFF)))
+            visual(items.size, rtl).forEach { i ->
+                val item = items[i]
+                // the divider stands between the pages and the utility pages, whichever side they are on
+                if (!rtl && i == navItems.size) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(18.dp).background(Color(0x26FFFFFF)))
                 CapsuleItem(item, selected = i == selected, showName = i < navItems.size && (!compact || i == selected), onPlace = { x, w -> spots[i] = x to w })
+                if (rtl && i == navItems.size) Box(Modifier.padding(horizontal = 4.dp).width(1.dp).height(18.dp).background(Color(0x26FFFFFF)))
             }
         }
+    }
     }
 }
 

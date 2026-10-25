@@ -46,9 +46,25 @@ object SupportPrompt {
     /** The next window is a day away, whatever the person does with this one */
     private fun postponeOneDay() { runCatching { prefs().edit().putLong(NEXT_KEY, System.currentTimeMillis() + DAY).apply() } }
 
+    private var activeDialog: Overlays.Dialog? = null
+
+    /** Dismiss the prompt if open (e.g. when opening the player) */
+    fun dismiss() {
+        val d = activeDialog ?: return
+        activeDialog = null
+        Overlays.dismiss(d)
+    }
+
     /** Called from the shell: waits for a quiet moment and shows the window when it is due */
     @Composable
     fun Effect() {
+        val route = Navigator.current.route
+        LaunchedEffect(route) {
+            if (route is Route.Player || route is Route.Setup) {
+                dismiss()
+            }
+        }
+
         LaunchedEffect(Unit) {
             if (!due()) return@LaunchedEffect
             // the extensions load and the first page draws first; then wait for a page that is not the player
@@ -60,27 +76,28 @@ object SupportPrompt {
 
     fun show() {
         postponeOneDay()
-        Overlays.show(
-            Overlays.Dialog(
-                title = "Enjoying e-cloudstream?",
-                primary = "★  Star on GitHub",
-                secondary = "♥  Support upstream",
-                close = "Later",
-                width = 480.dp,
-                onPrimary = { DesktopPlatform.openExternalBrowser(AppInfo.REPO_URL) },
-                onSecondary = { DesktopPlatform.openExternalBrowser(AppInfo.DONATE_URL) },
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    FText("A star on GitHub helps people find this independent fork. Donations and community links below support the original cs3d project, not e-cloudstream. Thank you to its upstream contributors!", color = Fluent.colors.textSecondary)
-                    // outside India the Razorpay page does not take the card: Buy Me a Coffee does
-                    Button("Support upstream internationally", { DesktopPlatform.openExternalBrowser(AppInfo.DONATE_INTL_URL) }, icon = Icons.Favorite, height = 34.dp)
-                    // news and new versions are on Telegram, chat and help on Discord
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button("Upstream Telegram", { DesktopPlatform.openExternalBrowser(AppInfo.TELEGRAM_URL) }, icon = Icons.Link, height = 34.dp)
-                        Button("Upstream Discord", { DesktopPlatform.openExternalBrowser(AppInfo.DISCORD_URL) }, icon = Icons.Link, height = 34.dp)
-                    }
+        val d = Overlays.Dialog(
+            title = "Enjoying e-cloudstream?",
+            primary = "★  Star on GitHub",
+            secondary = "♥  Support upstream",
+            close = "Later",
+            width = 480.dp,
+            onPrimary = { activeDialog = null; DesktopPlatform.openExternalBrowser(AppInfo.REPO_URL) },
+            onSecondary = { activeDialog = null; DesktopPlatform.openExternalBrowser(AppInfo.DONATE_URL) },
+            onClose = { activeDialog = null },
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                FText("A star on GitHub helps people find this independent fork. Donations and community links below support the original cs3d project, not e-cloudstream. Thank you to its upstream contributors!", color = Fluent.colors.textSecondary)
+                // outside India the Razorpay page does not take the card: Buy Me a Coffee does
+                Button("Support upstream internationally", { DesktopPlatform.openExternalBrowser(AppInfo.DONATE_INTL_URL) }, icon = Icons.Favorite, height = 34.dp)
+                // news and new versions are on Telegram, chat and help on Discord
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button("Upstream Telegram", { DesktopPlatform.openExternalBrowser(AppInfo.TELEGRAM_URL) }, icon = Icons.Link, height = 34.dp)
+                    Button("Upstream Discord", { DesktopPlatform.openExternalBrowser(AppInfo.DISCORD_URL) }, icon = Icons.Link, height = 34.dp)
                 }
-            },
-        )
+            }
+        }
+        activeDialog = d
+        Overlays.show(d)
     }
 }

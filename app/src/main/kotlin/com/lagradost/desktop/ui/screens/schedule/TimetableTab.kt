@@ -1,5 +1,7 @@
 package com.lagradost.desktop.ui.screens.schedule
 
+import com.lagradost.desktop.ui.fluent.hoverEdge
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -225,7 +227,7 @@ private fun DayButton(day: LocalDate, today: Boolean, on: Boolean, count: Int?, 
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center,
     ) {
         FText(
-            if (today) "TODAY" else day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).uppercase(),
+            if (today) "TODAY" else com.lagradost.desktop.i18n.Tr.upper(day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault())),
             style = Fluent.type.caption.copy(letterSpacing = 1.sp, fontWeight = FontWeight.SemiBold), color = soft, maxLines = 1, softWrap = false,
         )
         FText(day.dayOfMonth.toString(), style = Fluent.type.title.copy(fontSize = 26.sp, lineHeight = 32.sp, fontWeight = FontWeight.Bold), color = fg, maxLines = 1)
@@ -366,7 +368,7 @@ private fun EpisodeCard(a: AiringSchedule.Airing, aired: Boolean) {
     val source = rememberInteraction()
     val hovered by source.collectIsHoveredAsState()
     val shape = RoundedCornerShape(FluentShapes.card)
-    val edge by animateColorAsState(if (hovered) c.accent.copy(alpha = 0.55f) else c.stroke, FluentMotion.tweenStd(140), label = "epEdge")
+    val edge by animateColorAsState(if (hovered) c.hoverEdge else c.stroke, FluentMotion.tweenStd(140), label = "epEdge")
     val lift by animateFloatAsState(if (hovered) 1.012f else 1f, FluentMotion.tweenStd(140), label = "epLift")
     Row(
         Modifier.fillMaxWidth().height(92.dp).graphicsLayer { scaleX = lift; scaleY = lift }

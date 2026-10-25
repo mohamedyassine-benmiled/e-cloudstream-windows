@@ -23,6 +23,8 @@ import com.lagradost.desktop.ui.fluent.Overlays
 object Shortcuts {
     val player: List<Pair<String, String>> = listOf(
         "Space  ·  K" to "Play or pause",
+        "Hold Space" to "Plays at 2× for as long as you hold it, then the speed is back to normal (a quick press still pauses)",
+        "Hold click  ·  Hold touch" to "The same on the picture with the left mouse button or a finger. Not on the buttons, not when paused or live, not in the small window",
         "←  /  →" to "Back or forward 10 s (Shift: 30 s); keep it pressed or press again and again: the bubble counts +10 s, +20 s ...",
         "J  /  L" to "Back or forward 10 s",
         "Ctrl + ←  /  →" to "Previous or next episode (also P  /  N)",

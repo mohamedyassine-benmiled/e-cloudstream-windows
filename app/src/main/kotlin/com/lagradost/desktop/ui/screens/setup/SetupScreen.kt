@@ -145,7 +145,7 @@ private fun WelcomeStep() {
             items(langs, key = { it.second }) { (name, tag) ->
                 val source = rememberInteraction()
                 val hovered by source.collectIsHoveredAsState()
-                val shape = RoundedCornerShape(4.dp)
+                val shape = RoundedCornerShape(com.lagradost.desktop.ui.fluent.FluentShapes.row)
                 Row(
                     Modifier.fillMaxWidth().height(36.dp).clip(shape)
                         .background(if (tag == selected) c.subtleHover else if (hovered) c.subtleHover else Color.Transparent, shape)

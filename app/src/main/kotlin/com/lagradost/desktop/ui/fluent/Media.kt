@@ -1,7 +1,5 @@
 package com.lagradost.desktop.ui.fluent
 
-import com.lagradost.desktop.resume.resumeCardState
-
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -110,7 +108,9 @@ fun typeLabel(t: TvType?): String? = when (t) {
 
 /** Fraction watched (0..1) of a continue-watching entry, null for ordinary results */
 fun SearchResponse.watchedFraction(): Float? {
-    return resumeCardState()?.progress?.fraction?.toFloat()
+    val pos = (this as? DataStoreHelper.ResumeWatchingResult)?.watchPos ?: return null
+    if (pos.duration <= 0) return null
+    return (pos.position.toFloat() / pos.duration.toFloat()).coerceIn(0f, 1f)
 }
 
 @Composable
@@ -133,14 +133,21 @@ fun PosterCard(
     subtitle: String? = null,
     showType: Boolean = false,
     menu: (() -> List<MenuEntry>)? = null,
+    /** Play on the card's own button (the interface of a special theme shows one); the title page opens when null */
+    onPlay: (() -> Unit)? = null,
 ) {
+    // the interface of a special theme (Netflix) has its own card
+    if (Skins.spec != null) {
+        SkinPosterCard(item, onClick, width, modifier, landscape, subtitle, showType, onPlay, menu)
+        return
+    }
     val c = Fluent.colors
     val source = rememberInteraction()
     val hovered by source.collectIsHoveredAsState()
     val zoomOn = Appearance.hoverZoom
     val pressed by source.collectIsPressedAsState()
     // the card rises on a spring when the pointer comes (a little overshoot) and gives way under a press
-    val liftSpec = if (Appearance.motion == Motion.Off) androidx.compose.animation.core.snap<Float>() else androidx.compose.animation.core.spring(dampingRatio = 0.62f, stiffness = 520f)
+    val liftSpec = FluentMotion.springSoft<Float>()
     val lift by animateFloatAsState(if (pressed) 0.975f else if (hovered && zoomOn) 1.035f else 1f, liftSpec, label = "lift")
     val glow by animateFloatAsState(if (hovered) 1f else 0f, FluentMotion.tweenIn(220))
     val shape = RoundedCornerShape(FluentShapes.card)
@@ -259,11 +266,24 @@ fun <T> Shelf(
     var width by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
     // the row can be held and dragged with the mouse (a touch screen does that by itself, a mouse only had the wheel and the arrows); a short
     // movement is still a click on the card, and the row carries on a little after the button is let go
+    val dragState = androidx.compose.foundation.gestures.rememberDraggableState { delta -> state.dispatchRawDelta(-delta) }
+    val drag = Modifier.draggable(
+        dragState, androidx.compose.foundation.gestures.Orientation.Horizontal,
+        onDragStopped = { velocity ->
+            scope.launch {
+                var last = 0f
+                androidx.compose.animation.core.AnimationState(0f, -velocity).animateDecay(androidx.compose.animation.core.exponentialDecay(frictionMultiplier = 1.4f)) {
+                    val step = value - last
+                    last = value
+                    if ((step > 0f && !state.canScrollForward) || (step < 0f && !state.canScrollBackward)) cancelAnimation() else state.dispatchRawDelta(step)
+                }
+            }
+        },
+    )
     Box(modifier.fillMaxWidth().hoverable(source).onSizeChanged { width = it.width }) {
         LazyRow(
             // a row with no gutter (chips) is cut at its own edge: the cut end fades into the page instead of showing half a chip
-            modifier = (if (gutter == 0.dp) Modifier.scrollEdgeFade(state) else Modifier)
-                .touchScroll(state, androidx.compose.foundation.gestures.Orientation.Horizontal, mouseDrag = true),
+            modifier = (if (gutter == 0.dp) Modifier.scrollEdgeFade(state) else Modifier).touchScroll(state, androidx.compose.foundation.gestures.Orientation.Horizontal).then(drag),
             state = state,
             contentPadding = PaddingValues(horizontal = gutter),
             horizontalArrangement = Arrangement.spacedBy(spacing),
@@ -274,11 +294,15 @@ fun <T> Shelf(
         }
         val canBack = state.canScrollBackward
         val canForward = state.canScrollForward
-        if (hovered && canBack) ChevronButton(Icons.ChevronLeft, Modifier.align(Alignment.CenterStart).padding(start = 4.dp)) {
-            scope.launch { state.animateScrollBy(-width * 0.8f) }
+        // a special theme's arrows are tall strips over the row's edge (a row of chips, which has no gutter, keeps the round ones)
+        val strips = Skins.spec != null && gutter != 0.dp
+        if (hovered && canBack) {
+            if (strips) SkinShelfArrow(Icons.ChevronLeft, Modifier.align(Alignment.CenterStart)) { scope.launch { state.animateScrollBy(-width * 0.8f) } }
+            else ChevronButton(Icons.ChevronLeft, Modifier.align(Alignment.CenterStart).padding(start = 4.dp)) { scope.launch { state.animateScrollBy(-width * 0.8f) } }
         }
-        if (hovered && canForward) ChevronButton(Icons.ChevronRight, Modifier.align(Alignment.CenterEnd).padding(end = 4.dp)) {
-            scope.launch { state.animateScrollBy(width * 0.8f) }
+        if (hovered && canForward) {
+            if (strips) SkinShelfArrow(Icons.ChevronRight, Modifier.align(Alignment.CenterEnd)) { scope.launch { state.animateScrollBy(width * 0.8f) } }
+            else ChevronButton(Icons.ChevronRight, Modifier.align(Alignment.CenterEnd).padding(end = 4.dp)) { scope.launch { state.animateScrollBy(width * 0.8f) } }
         }
     }
 }

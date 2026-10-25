@@ -111,7 +111,7 @@ fun FlyoutSurface(modifier: Modifier = Modifier, content: @Composable () -> Unit
     val shape = RoundedCornerShape(FluentShapes.overlay)
     // menus and lists open with a short fade and a little growth from their top edge instead of appearing at once
     val appear = androidx.compose.runtime.remember { androidx.compose.animation.core.Animatable(if (Appearance.motion == Motion.Off) 1f else 0f) }
-    androidx.compose.runtime.LaunchedEffect(Unit) { if (appear.value < 1f) appear.animateTo(1f, androidx.compose.animation.core.tween(FluentMotion.ms(200), easing = FluentMotion.enter)) }
+    androidx.compose.runtime.LaunchedEffect(Unit) { if (appear.value < 1f) appear.animateTo(1f, androidx.compose.animation.core.tween(FluentMotion.ms(150), easing = FluentMotion.enter)) }
     Box(
         modifier
             .graphicsLayer { alpha = appear.value; scaleX = 0.94f + 0.06f * appear.value; scaleY = 0.78f + 0.22f * appear.value; transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0f) }
@@ -162,7 +162,7 @@ private fun MenuRow(item: MenuItem, onClick: () -> Unit) {
     val c = Fluent.colors
     val source = rememberInteraction()
     val hovered by source.collectIsHoveredAsState()
-    val shape = RoundedCornerShape(4.dp)
+    val shape = RoundedCornerShape(FluentShapes.row)
     Row(
         Modifier
             .padding(horizontal = 4.dp)
@@ -231,7 +231,8 @@ fun <T> ComboBox(
     var open by remember { mutableStateOf(false) }
     val source = rememberInteraction()
     val hovered by source.collectIsHoveredAsState()
-    val shape = RoundedCornerShape(FluentShapes.control)
+    // a pill like every other control; the hairline lights up neutrally (the accent colour is kept for state: switches, sliders, progress)
+    val shape = FluentShapes.pill
     var anchorWidth by remember { mutableStateOf(0) }
     val density = LocalDensity.current
     Box(modifier.onSizeChanged { anchorWidth = it.width }) {
@@ -240,13 +241,13 @@ fun <T> ComboBox(
                 .defaultMinSize(minWidth = minWidth)
                 .height(height)
                 .background(if (!enabled) c.controlDisabled else if (hovered) c.controlHover else c.control, shape)
-                .hairBorder(if (enabled && (hovered || open)) c.accent.copy(alpha = 0.6f) else c.strokeStrong.copy(alpha = 0.45f), shape)
+                .hairBorder(if (enabled && (hovered || open)) c.text.copy(alpha = if (open) 0.55f else 0.32f) else c.stroke, shape)
                 .fluentClickable(source, enabled, shape, Role.DropdownList) { open = !open }
-                .padding(start = 12.dp, end = 8.dp),
+                .padding(start = 14.dp, end = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (icon != null) {
-                Icon(icon, size = 14.dp, tint = c.accentText)
+                Icon(icon, size = 14.dp, tint = c.textSecondary)
                 Box(Modifier.width(8.dp))
             }
             if (selected != null && leadingItem != null) {
@@ -260,7 +261,7 @@ fun <T> ComboBox(
                 trailingItem(selected)
             }
             Box(Modifier.width(12.dp))
-            Icon(Icons.ChevronDownSmall, size = 12.dp, tint = c.accentText)
+            Icon(Icons.ChevronDownSmall, size = 12.dp, tint = c.textSecondary)
         }
         if (open) {
             Popup(popupPositionProvider = BelowAnchor(2), onDismissRequest = { open = false }, properties = PopupProperties(focusable = true)) {
@@ -291,7 +292,7 @@ private fun <T> DropdownList(items: List<T>, selected: T?, label: (T) -> String,
         val isSel = item == selected
         val source = rememberInteraction()
         val hovered by source.collectIsHoveredAsState()
-        val shape = RoundedCornerShape(4.dp)
+        val shape = RoundedCornerShape(FluentShapes.row)
         Box(
             Modifier
                 .padding(horizontal = 4.dp, vertical = 1.dp)
@@ -309,8 +310,7 @@ private fun <T> DropdownList(items: List<T>, selected: T?, label: (T) -> String,
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.CenterStart,
         ) {
-            if (isSel) Box(Modifier.align(Alignment.CenterStart).size(3.dp, 16.dp).background(c.accent, RoundedCornerShape(2.dp)))
-            Row(Modifier.fillMaxWidth().padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                 if (leadingItem != null) {
                     leadingItem(item)
                     Box(Modifier.width(10.dp))
@@ -319,6 +319,10 @@ private fun <T> DropdownList(items: List<T>, selected: T?, label: (T) -> String,
                 if (trailingItem != null) {
                     Box(Modifier.width(8.dp))
                     trailingItem(item)
+                }
+                if (isSel) {
+                    Box(Modifier.width(12.dp))
+                    Icon(Icons.Check, size = 12.dp, tint = c.text)
                 }
             }
         }
@@ -369,6 +373,8 @@ object Overlays {
         val onSecondary: () -> Unit = {},
         val onClose: () -> Unit = {},
         val width: Dp = 440.dp,
+        /** The most the body may be tall (a list that scrolls inside it); it is also kept inside the window */
+        val bodyMax: Dp = 520.dp,
         /** A click on the dimmed area around the card closes it (menus that apply each choice at once) */
         val dismissOnOutside: Boolean = false,
         /** No card: the body fills the window over the dimmed area (a picture viewer); Esc and the body's own buttons close it */
@@ -408,13 +414,13 @@ object Overlays {
 fun DialogLayer() {
     val top = Overlays.dialogs.lastOrNull()
     val c = Fluent.colors
-    AnimatedVisibility(top != null, enter = fadeIn(FluentMotion.tweenIn(200)), exit = fadeOut(FluentMotion.tweenOut(120))) {
+    AnimatedVisibility(top != null, enter = fadeIn(FluentMotion.tweenIn(FluentMotion.BASE)), exit = fadeOut(FluentMotion.tweenOut(110))) {
         // keep the last dialog drawn while the exit animation runs
         val shown = remember(top) { top }
         // the card rises and grows into place
         val appear = remember(shown) { androidx.compose.animation.core.Animatable(0f) }
-        androidx.compose.runtime.LaunchedEffect(shown) { appear.animateTo(1f, FluentMotion.tweenIn(180)) }
-        Box(
+        androidx.compose.runtime.LaunchedEffect(shown) { appear.animateTo(1f, FluentMotion.tweenIn(FluentMotion.BASE)) }
+        androidx.compose.foundation.layout.BoxWithConstraints(
             Modifier.fillMaxSize().background(c.scrim.copy(alpha = (c.scrim.alpha * 1.4f).coerceAtMost(0.75f))).pointerInput(shown) {
                 awaitPointerEventScope {
                     while (true) {
@@ -428,21 +434,26 @@ fun DialogLayer() {
             },
             contentAlignment = Alignment.Center,
         ) {
+            val windowWidth = maxWidth
+            val windowHeight = maxHeight
             if (shown != null && shown.fullscreen) Box(Modifier.fillMaxSize().graphicsLayer { alpha = appear.value }) { shown.body { Overlays.dismiss(shown) } }
-            else if (shown != null) Box(Modifier.graphicsLayer { val a = appear.value; alpha = a; val s = 0.97f + 0.03f * a; scaleX = s; scaleY = s }.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } } }) { ContentDialogCard(shown) }
+            else if (shown != null) Box(Modifier.graphicsLayer { val a = appear.value; alpha = a; val s = 0.97f + 0.03f * a; scaleX = s; scaleY = s }.pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { it.consume() } } }) { ContentDialogCard(shown, windowWidth, windowHeight) }
         }
     }
 }
 
 @Composable
-private fun ContentDialogCard(d: Overlays.Dialog) {
+private fun ContentDialogCard(d: Overlays.Dialog, windowWidth: Dp, windowHeight: Dp) {
     val c = Fluent.colors
     val shape = RoundedCornerShape(FluentShapes.overlay)
     val dismiss = { Overlays.dismiss(d) }
+    // never wider than the window, and a list never taller than what is left of it under the title and above the buttons
+    val width = minOf(d.width, (windowWidth - 48.dp).coerceAtLeast(280.dp))
+    val bodyMax = minOf(d.bodyMax, (windowHeight - 250.dp).coerceAtLeast(200.dp))
     Column(
         Modifier
             .padding(24.dp)
-            .width(d.width)
+            .width(width)
             .shadow(48.dp, shape, clip = false)
             .background(c.flyout, shape)
             .hairBorder(if (c.dark) Color(0x66757575) else Color(0x33000000), shape)
@@ -453,7 +464,7 @@ private fun ContentDialogCard(d: Overlays.Dialog) {
                 FText(d.title, style = Fluent.type.subtitle.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold), maxLines = 3)
                 Box(Modifier.height(14.dp))
             }
-            Box(Modifier.heightIn(max = 520.dp)) { d.body(dismiss) }
+            Box(Modifier.heightIn(max = bodyMax)) { d.body(dismiss) }
         }
         if (d.primary != null || d.secondary != null || d.close != null) {
             Row(
